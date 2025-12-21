@@ -204,7 +204,7 @@ export default function AportesPage() {
   const aprobados = aportes.filter((a) => a.status === 'aprobado');
   const rechazados = aportes.filter((a) => a.status === 'rechazado');
 
-  const misAportes = aportes.filter((a) => a.user_id === userId);
+  const misAportes = aportes.filter((a) => a.user_id === userId && a.status === 'pendiente');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -298,9 +298,9 @@ export default function AportesPage() {
 
         {/* Mis Aportes */}
         <div className="bg-white p-6 rounded-xl shadow-md mb-6">
-          <h2 className="text-2xl font-bold mb-4">📝 Mis Aportes ({misAportes.length})</h2>
+          <h2 className="text-2xl font-bold mb-4">📝 Mis Aportes Pendientes ({misAportes.length})</h2>
           {misAportes.length === 0 ? (
-            <p className="text-gray-500">No has registrado aportes aún</p>
+            <p className="text-gray-500">No tienes aportes pendientes</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">

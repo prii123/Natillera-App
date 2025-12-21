@@ -19,15 +19,17 @@ interface Creador {
 interface Transaccion {
   id: number;
   natillera_id: number;
-  tipo: 'ingreso' | 'gasto' | 'prestamo';
+  tipo: 'efectivo' | 'prestamo' | 'pago_prestamos' | 'pago_prestamo_pendiente' | 'ingreso' | 'gasto';
   categoria: string;
   monto: string;
   descripcion: string;
   fecha: string;
   creado_por: number;
   aporte_id: number | null;
+  prestamo_id: number | null;
   created_at: string;
   creador: Creador;
+  miembro: Creador | null;
 }
 
 interface Balance {
@@ -55,7 +57,7 @@ export default function TransaccionesPage({ params }: { params: Promise<{ id: st
   const [loadingTransacciones, setLoadingTransacciones] = useState(true);
   const [isCreator, setIsCreator] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [type, setType] = useState<'ingreso' | 'gasto' | 'prestamo'>('ingreso');
+  const [type, setType] = useState<'efectivo' | 'prestamo' | 'pago_prestamos' | 'pago_prestamo_pendiente' | 'ingreso' | 'gasto'>('ingreso');
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -330,7 +332,7 @@ export default function TransaccionesPage({ params }: { params: Promise<{ id: st
                 </label>
                 <select
                   value={type}
-                  onChange={(e) => setType(e.target.value as 'ingreso' | 'gasto' | 'prestamo')}
+                  onChange={(e) => setType(e.target.value as 'efectivo' | 'prestamo' | 'pago_prestamos' | 'pago_prestamo_pendiente' | 'ingreso' | 'gasto')}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 >
                   <option value="ingreso">Ingreso</option>
@@ -405,49 +407,89 @@ export default function TransaccionesPage({ params }: { params: Promise<{ id: st
           ) : transacciones.length === 0 ? (
             <p style={{ color: 'var(--color-muted)' }}>No hay transacciones registradas</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {transacciones.map((transaccion) => {
-                let bg = '', border = '', text = '', icon = '';
-                if (transaccion.tipo === 'ingreso') {
-                  bg = 'bg-green-50'; border = 'border-green-400'; text = 'text-green-900'; icon = '📈';
-                } else if (transaccion.tipo === 'gasto') {
-                  bg = 'bg-red-50'; border = 'border-red-400'; text = 'text-red-900'; icon = '📉';
-                } else if (transaccion.tipo === 'prestamo') {
-                  bg = 'bg-yellow-50'; border = 'border-yellow-400'; text = 'text-yellow-900'; icon = '💰';
-                } else {
-                  bg = 'bg-gray-100'; border = 'border-gray-300'; text = 'text-gray-900'; icon = '💸';
-                }
-                // Calcular monto numérico seguro
-                let montoNum = 0;
-                if (typeof transaccion.monto === 'number') {
-                  montoNum = transaccion.monto;
-                } else if (typeof transaccion.monto === 'string') {
-                  const parsed = parseFloat(transaccion.monto);
-                  montoNum = Number.isFinite(parsed) ? parsed : 0;
-                }
-                return (
-                  <div key={transaccion.id} className={`p-5 rounded-xl border shadow-sm flex flex-col gap-2 ${bg} ${border}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-2xl ${text}`}>{icon}</span>
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide border shadow-sm uppercase ${bg} ${border} ${text}`}>
-                        {transaccion.tipo === 'ingreso' && 'Ingreso'}
-                        {transaccion.tipo === 'gasto' && 'Gasto'}
-                        {transaccion.tipo === 'prestamo' && 'Préstamo'}
-                      </span>
-                      <span className="ml-auto text-xs text-gray-500">{new Date(transaccion.fecha || transaccion.created_at).toLocaleDateString('es-CO')}</span>
-                    </div>
-                    <div className="font-semibold text-lg text-gray-900">{transaccion.descripcion}</div>
-                    <div className="flex items-center gap-2">
-                      <span className={`font-bold text-xl ${text}`}>
-                        {transaccion.tipo === 'ingreso' ? '+' : '-'} {formatCurrency(montoNum)}
-                      </span>
-                    </div>
-                    {transaccion.categoria && (
-                      <div className="text-xs text-gray-700">Categoría: {transaccion.categoria}</div>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="overflow-x-auto">
+              <table className="w-full bg-white rounded-lg shadow-sm overflow-hidden">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fecha
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tipo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Categoría
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Descripción
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Monto
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Usuario
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {transacciones.map((transaccion) => {
+                    let text = '', icon = '';
+                    if (transaccion.tipo === 'ingreso') {
+                      text = 'text-green-900'; icon = '📈';
+                    } else if (transaccion.tipo === 'gasto') {
+                      text = 'text-red-900'; icon = '📉';
+                    } else if (transaccion.tipo === 'efectivo') {
+                      text = 'text-blue-900'; icon = '💵';
+                    } else if (transaccion.tipo === 'prestamo' || transaccion.tipo === 'pago_prestamos' || transaccion.tipo === 'pago_prestamo_pendiente') {
+                      text = 'text-yellow-900'; icon = '💰';
+                    } else {
+                      text = 'text-gray-900'; icon = '💸';
+                    }
+                    // Calcular monto numérico seguro
+                    let montoNum = 0;
+                    if (typeof transaccion.monto === 'number') {
+                      montoNum = transaccion.monto;
+                    } else if (typeof transaccion.monto === 'string') {
+                      const parsed = parseFloat(transaccion.monto);
+                      montoNum = Number.isFinite(parsed) ? parsed : 0;
+                    }
+                    return (
+                      <tr key={transaccion.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {new Date(transaccion.fecha || transaccion.created_at).toLocaleDateString('es-CO')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`inline-flex items-center gap-1 ${text}`}>
+                            <span>{icon}</span>
+                            <span className="capitalize">
+                              {transaccion.tipo === 'ingreso' && 'Ingreso'}
+                              {transaccion.tipo === 'gasto' && 'Gasto'}
+                              {transaccion.tipo === 'efectivo' && 'Efectivo'}
+                              {transaccion.tipo === 'prestamo' && 'Préstamo'}
+                              {transaccion.tipo === 'pago_prestamos' && 'Pago Préstamo'}
+                              {transaccion.tipo === 'pago_prestamo_pendiente' && 'Pago Pendiente'}
+                            </span>
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {transaccion.categoria || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                          {transaccion.descripcion}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
+                          <span className={text}>
+                            {(transaccion.tipo === 'ingreso' || transaccion.tipo === 'efectivo' || transaccion.tipo === 'pago_prestamos' || transaccion.tipo === 'pago_prestamo_pendiente') ? '+' : '-'} {formatCurrency(montoNum)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {transaccion.miembro?.full_name || transaccion.creador?.full_name || 'Sistema'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

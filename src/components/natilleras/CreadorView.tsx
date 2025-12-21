@@ -2,10 +2,43 @@
 function formatCurrency(value: number) {
   return value.toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 }
-import React from 'react';
+import React, { useState } from 'react';
+import { fetchAPI } from '@/lib/api';
+import { toast } from 'sonner';
 
 
 export default function CreadorView({ natillera, balance, loadingBalance, loadingMembers, SkeletonBox }: any) {
+  const [invitationEmail, setInvitationEmail] = useState('');
+  const [sendingInvitation, setSendingInvitation] = useState(false);
+
+  const handleSendInvitation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invitationEmail.trim()) {
+      toast.error('Ingresa un email válido');
+      return;
+    }
+    setSendingInvitation(true);
+    try {
+      const response = await fetchAPI('/invitaciones/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          natillera_id: natillera.id,
+          invited_email: invitationEmail.trim()
+        })
+      });
+      if (response.ok) {
+        toast.success('Invitación enviada exitosamente');
+        setInvitationEmail('');
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Error al enviar invitación');
+      }
+    } catch (error) {
+      toast.error('Error al enviar invitación');
+    }
+    setSendingInvitation(false);
+  };
   return (
     <>
       {/* Gestión de Miembros */}
@@ -36,6 +69,31 @@ export default function CreadorView({ natillera, balance, loadingBalance, loadin
             ))}
           </div>
         )}
+      </div>
+
+      {/* Enviar Invitaciones */}
+      <div className="mb-8">
+        <div className="text-xl font-bold mb-4 text-blue-900">Enviar Invitaciones</div>
+        <div className="bg-white p-6 rounded-xl shadow-md border border-blue-300">
+          <p className="text-sm text-gray-600 mb-4">Invita a nuevos miembros a unirse a tu natillera enviándoles una invitación por email.</p>
+          <form onSubmit={handleSendInvitation} className="flex gap-4">
+            <input
+              type="email"
+              value={invitationEmail}
+              onChange={(e) => setInvitationEmail(e.target.value)}
+              placeholder="Email del usuario a invitar"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+            <button
+              type="submit"
+              disabled={sendingInvitation}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+            >
+              {sendingInvitation ? 'Enviando...' : 'Enviar Invitación'}
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* Aprobación de Aportes Pendientes */}

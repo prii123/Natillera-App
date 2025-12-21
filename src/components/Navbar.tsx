@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
 import { useNatilleraIdFromPath } from '@/lib/useNatilleraIdFromPath';
 import { fetchAPI } from '@/lib/api';
+import NotificationBell from './NotificationBell';
 
 interface NavbarProps {
   children?: React.ReactNode;
@@ -77,6 +78,7 @@ export default function Navbar({ children }: NavbarProps) {
           )}
 
           <div className="flex items-center space-x-4">
+            {natilleraId && <NotificationBell />}
             <div className="relative">
               <button
                 onClick={() => setShowMenu(!showMenu)}
