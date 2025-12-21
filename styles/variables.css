@@ -1,0 +1,14 @@
+:root {
+  --color-primary: #059669; /* green-600 */
+  --color-primary-dark: #047857; /* green-700 */
+  --color-secondary: #2563eb; /* blue-600 */
+  --color-secondary-dark: #1d4ed8; /* blue-700 */
+  --color-accent: #f59e42; /* yellow-500 */
+  --color-accent-dark: #d97706; /* yellow-700 */
+  --color-danger: #ef4444; /* red-500 */
+  --color-danger-dark: #b91c1c; /* red-700 */
+  --color-bg: #f9fafb; /* gray-50 */
+  --color-surface: #fff; /* white */
+  --color-muted: #6b7280; /* gray-500 */
+  --color-text-primary: #171717; /* negro principal */
+}
