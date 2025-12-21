@@ -156,7 +156,7 @@ export default function CreadorView({ natillera, balance, loadingBalance, loadin
                 {natillera.aportesTotales.map((item: any) => (
                   <tr key={item.user.id}>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">{item.user.full_name}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">{item.totalAportado.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">{formatCurrency(item.totalAportado)}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">{item.porcentaje.toFixed(1)}%</td>
                   </tr>
                 ))}

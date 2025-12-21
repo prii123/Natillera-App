@@ -1,6 +1,7 @@
 import React from "react";
 import { useEffect, useState } from "react";
 import { fetchAPI, formatCurrency } from "@/lib/api";
+import { useInvalidateNotifications } from "@/hooks/useNotifications";
 
 interface Props {
   natillera: any;
@@ -40,6 +41,8 @@ const PrestamosCreador: React.FC<Props> = ({ natillera, user }) => {
   const [editingPrestamo, setEditingPrestamo] = useState<Prestamo | null>(null);
   const [editMonto, setEditMonto] = useState("");
   const [editTasa, setEditTasa] = useState("");
+
+  const invalidateNotifications = useInvalidateNotifications();
 
   useEffect(() => {
     if (!user || !natillera) return;
@@ -86,6 +89,8 @@ const PrestamosCreador: React.FC<Props> = ({ natillera, user }) => {
           setPrestamosPendientes(prev => prev.filter(p => p.id !== prestamoId));
           setPrestamosAprobados(prev => [...prev, aprobado]);
         }
+        // Invalidar notificaciones para actualizar el contador
+        invalidateNotifications();
       } else {
         const err = await res.json();
         let errorMsg = "Error al aprobar préstamo";
@@ -216,6 +221,8 @@ const PrestamosCreador: React.FC<Props> = ({ natillera, user }) => {
           const data = await prestamosRes.json();
           setPrestamosAprobados(data.aprobados || []);
         }
+        // Invalidar notificaciones para actualizar el contador
+        invalidateNotifications();
       } else {
         const err = await res.json();
         let errorMsg = "Error al aprobar pago";

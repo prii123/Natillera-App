@@ -3,15 +3,43 @@
 import CreadorView from '@/components/natilleras/CreadorView';
 import MiembroView from '@/components/natilleras/MiembroView';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import { fetchAPI, formatCurrency } from '@/lib/api';
 import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
-import { calcularAportesTotales } from '@/lib/calculosNatillera';
-import type { Natillera, Aporte, User } from '@/types';
+import { useInvalidateNotifications } from '@/hooks/useNotifications';
+
+interface User {
+  id: number;
+  email: string;
+  username: string;
+  full_name: string;
+  created_at: string;
+}
+
+interface Natillera {
+  id: number;
+  name: string;
+  monthly_amount: number;
+  creator_id: number;
+  created_at: string;
+  estado: 'activo' | 'inactivo';
+  creator: User;
+}
+
+interface Aporte {
+  id: number;
+  amount: number;
+  user_id: number;
+  natillera_id: number;
+  status: 'pendiente' | 'aprobado' | 'rechazado';
+  created_at: string;
+  updated_at: string;
+  user: User;
+}
 
 interface Balance {
   efectivo: number;
@@ -20,6 +48,34 @@ interface Balance {
   gastos: number;
   capital_disponible: number;
 }
+
+// Función para calcular el total de aportes aprobados por usuario
+const calcularAportesTotales = (natillera: any, aportes: Aporte[]) => {
+  const aportesAprobados = aportes.filter(aporte => aporte.status === 'aprobado');
+
+  // Agrupar aportes por usuario
+  const aportesPorUsuario = aportesAprobados.reduce((acc, aporte) => {
+    const userId = aporte.user_id;
+    if (!acc[userId]) {
+      acc[userId] = {
+        user: aporte.user,
+        totalAportado: 0
+      };
+    }
+    acc[userId].totalAportado += aporte.amount;
+    return acc;
+  }, {} as Record<number, { user: User; totalAportado: number }>);
+
+  // Calcular el total general
+  const totalGeneral = Object.values(aportesPorUsuario).reduce((sum, item) => sum + item.totalAportado, 0);
+
+  // Calcular porcentajes y devolver array
+  return Object.values(aportesPorUsuario).map(item => ({
+    user: item.user,
+    totalAportado: item.totalAportado,
+    porcentaje: totalGeneral > 0 ? (item.totalAportado / totalGeneral) * 100 : 0
+  }));
+};
 
 // Next.js App Router: params siempre es un objeto síncrono
 export default function NatilleraDetallePage() {
@@ -38,6 +94,38 @@ export default function NatilleraDetallePage() {
   const [aportesPendientes, setAportesPendientes] = useState<Aporte[]>([]);
   const [loadingAportes, setLoadingAportes] = useState(true);
   const [aportes, setAportes] = useState<Aporte[]>([]);
+
+  const invalidateNotifications = useInvalidateNotifications();
+
+  // Calcular aportes totales usando useMemo para que se actualice cuando cambien los aportes
+  const aportesTotales = useMemo(() => {
+    const aportesAprobados = aportes.filter(aporte => aporte.status === 'aprobado');
+
+    // Agrupar aportes por usuario
+    const aportesPorUsuario = aportesAprobados.reduce((acc, aporte) => {
+      const userId = aporte.user_id;
+      if (!acc[userId]) {
+        acc[userId] = {
+          user: aporte.user,
+          totalAportado: 0
+        };
+      }
+      acc[userId].totalAportado += Number(aporte.amount);
+      return acc;
+    }, {} as Record<number, { user: User; totalAportado: number }>);
+
+    // Calcular el total general
+    const totalGeneral = Object.values(aportesPorUsuario).reduce((sum, item) => sum + item.totalAportado, 0);
+
+    // Calcular porcentajes y devolver array
+    const result = Object.values(aportesPorUsuario).map(item => ({
+      user: item.user,
+      totalAportado: item.totalAportado,
+      porcentaje: totalGeneral > 0 ? (item.totalAportado / totalGeneral) * 100 : 0
+    }));
+
+    return result;
+  }, [aportes]);
 
   // Cargar aportes según el rol y estadísticas de miembro
   useEffect(() => {
@@ -131,6 +219,8 @@ export default function NatilleraDetallePage() {
       if (res.ok) {
         toast.success('Aporte aprobado');
         refreshAportesPendientes();
+        // Invalidar notificaciones para actualizar el contador
+        invalidateNotifications();
       } else {
         toast.error('Error al aprobar aporte');
       }
@@ -149,6 +239,8 @@ export default function NatilleraDetallePage() {
       if (res.ok) {
         toast.success('Aporte rechazado');
         refreshAportesPendientes();
+        // Invalidar notificaciones para actualizar el contador
+        invalidateNotifications();
       } else {
         toast.error('Error al rechazar aporte');
       }
@@ -271,7 +363,7 @@ export default function NatilleraDetallePage() {
           <div className="space-y-1 ml-1">
             <p>
               <span className="font-medium text-blue-900">Monto mensual:</span>{' '}
-              <span className="font-semibold text-blue-900">{formatCurrency(parseFloat(natillera.monthly_amount))}</span>
+              <span className="font-semibold text-blue-900">{formatCurrency(natillera.monthly_amount)}</span>
             </p>
             <p>
               <span className="font-medium text-blue-900">Estado:</span>{' '}
@@ -297,7 +389,7 @@ export default function NatilleraDetallePage() {
               aportesPendientes,
               onApproveAporte: handleApproveAporte,
               onRejectAporte: handleRejectAporte,
-              aportesTotales: calcularAportesTotales(natillera, aportes),
+              aportesTotales: aportesTotales,
             }}
             balance={balance}
             loadingBalance={loadingBalance}
