@@ -52,6 +52,8 @@ export default function DashboardPage() {
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
+      } else if (response.status === 401) {
+        router.push('/login');
       }
     } catch (error) {
       console.error('Error cargando usuario:', error);
