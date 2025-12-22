@@ -11,11 +11,11 @@ export default function NotificationBell() {
   const natilleraId = useNatilleraIdFromPath();
   const [showDropdown, setShowDropdown] = useState(false);
 
-  if (!natilleraId || !user) return null;
+  if (!user) return null;
 
   const totalNotifications = counts.total;
 
-  const notifications = isCreator ? [
+  const notifications = natilleraId ? (isCreator ? [
     { label: 'Aportes pendientes', count: counts.aportesPendientes, icon: '💰', href: `/natilleras/${natilleraId}/aportes` },
     { label: 'Préstamos pendientes', count: counts.prestamosPendientes, icon: '💸', href: `/natilleras/${natilleraId}/prestamos` },
     { label: 'Pagos pendientes', count: counts.pagosPendientes, icon: '💳', href: `/natilleras/${natilleraId}/prestamos` },
@@ -24,6 +24,8 @@ export default function NotificationBell() {
     { label: 'Aportes aprobados', count: counts.aportesAprobados, icon: '✅', href: `/natilleras/${natilleraId}/aportes` },
     { label: 'Préstamos aprobados', count: counts.prestamosAprobados, icon: '✅', href: `/natilleras/${natilleraId}/prestamos` },
     { label: 'Pagos aprobados', count: counts.pagosAprobados, icon: '✅', href: `/natilleras/${natilleraId}/prestamos` },
+  ]) : [
+    { label: 'Invitaciones pendientes', count: counts.pendingInvitations, icon: '📨', href: '/invitaciones' },
   ];
 
   return (

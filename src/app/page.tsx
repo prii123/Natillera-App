@@ -1,8 +1,6 @@
 import Link from "next/link";
 
 export default function Home() {
-  console.log('Home component rendered');
-  debugger; // Pausa para ver consola
   return (
     <div className="min-h-screen">
       {/* Hero Section */}

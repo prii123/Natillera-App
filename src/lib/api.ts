@@ -1,7 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-console.log('API_URL:', API_URL);
-
 interface FetchOptions extends RequestInit {
   body?: any;
 }
@@ -26,7 +24,13 @@ export async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
   
   const response = await fetch(url, config);
   
-  // Removed global redirect on 401, let components handle it
+  if (response.status === 401) {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    throw new Error('No autorizado');
+  }
   
   return response;
 }

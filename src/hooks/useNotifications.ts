@@ -13,6 +13,7 @@ interface NotificationCounts {
   aportesAprobados: number;
   prestamosAprobados: number;
   pagosAprobados: number;
+  pendingInvitations: number;
   total: number;
 }
 
@@ -25,6 +26,7 @@ export function useNotifications() {
     aportesAprobados: 0,
     prestamosAprobados: 0,
     pagosAprobados: 0,
+    pendingInvitations: 0,
     total: 0,
   });
   const [loading, setLoading] = useState(true);
@@ -33,62 +35,83 @@ export function useNotifications() {
   const { user } = useAuth();
 
   const fetchNotifications = useCallback(async () => {
-    if (!natilleraId || !user) return;
+    if (!user) return;
 
     try {
       setLoading(true);
 
-      // Verificar si es creador
-      const natilleraRes = await fetchAPI(`/natilleras/${natilleraId}`);
-      if (natilleraRes.ok) {
-        const natilleraData = await natilleraRes.json();
-        const userIsCreator = natilleraData.creator_id === user.id;
-        setIsCreator(userIsCreator);
+      if (natilleraId) {
+        // Verificar si es creador
+        const natilleraRes = await fetchAPI(`/natilleras/${natilleraId}`);
+        if (natilleraRes.ok) {
+          const natilleraData = await natilleraRes.json();
+          const userIsCreator = natilleraData.creator_id === user.id;
+          setIsCreator(userIsCreator);
 
-        // Llamadas según el rol
-        const promises = [];
+          // Llamadas según el rol
+          const promises = [];
 
-        if (userIsCreator) {
-          promises.push(
-            fetchAPI(`/aportes/natillera/${natilleraId}/pendientes/count`),
-            fetchAPI(`/prestamos/natillera/${natilleraId}/pendientes/count`),
-            fetchAPI(`/prestamos/pagos/natillera/${natilleraId}/pendientes/count`),
-            fetchAPI(`/invitaciones/natillera/${natilleraId}/respondidas/count`)
-          );
-        } else {
-          promises.push(
-            fetchAPI(`/aportes/my-aportes/aprobados/count?natillera_id=${natilleraId}`),
-            fetchAPI(`/prestamos/my-prestamos/aprobados/count?natillera_id=${natilleraId}`),
-            fetchAPI(`/prestamos/pagos/my-pagos/aprobados/count?natillera_id=${natilleraId}`)
-          );
+          if (userIsCreator) {
+            promises.push(
+              fetchAPI(`/aportes/natillera/${natilleraId}/pendientes/count`),
+              fetchAPI(`/prestamos/natillera/${natilleraId}/pendientes/count`),
+              fetchAPI(`/prestamos/pagos/natillera/${natilleraId}/pendientes/count`),
+              fetchAPI(`/invitaciones/natillera/${natilleraId}/respondidas/count`)
+            );
+          } else {
+            promises.push(
+              fetchAPI(`/aportes/my-aportes/aprobados/count?natillera_id=${natilleraId}`),
+              fetchAPI(`/prestamos/my-prestamos/aprobados/count?natillera_id=${natilleraId}`),
+              fetchAPI(`/prestamos/pagos/my-pagos/aprobados/count?natillera_id=${natilleraId}`)
+            );
+          }
+
+          const responses = await Promise.all(promises);
+          const results = await Promise.all(responses.map(res => res.ok ? res.json() : { count: 0 }));
+
+          if (userIsCreator) {
+            const [aportes, prestamos, pagos, invitaciones] = results;
+            setCounts({
+              aportesPendientes: aportes.count || 0,
+              prestamosPendientes: prestamos.count || 0,
+              pagosPendientes: pagos.count || 0,
+              invitacionesRespondidas: invitaciones.count || 0,
+              aportesAprobados: 0,
+              prestamosAprobados: 0,
+              pagosAprobados: 0,
+              pendingInvitations: 0,
+              total: (aportes.count || 0) + (prestamos.count || 0) + (pagos.count || 0) + (invitaciones.count || 0),
+            });
+          } else {
+            const [aportes, prestamos, pagos] = results;
+            setCounts({
+              aportesPendientes: 0,
+              prestamosPendientes: 0,
+              pagosPendientes: 0,
+              invitacionesRespondidas: 0,
+              aportesAprobados: aportes.count || 0,
+              prestamosAprobados: prestamos.count || 0,
+              pagosAprobados: pagos.count || 0,
+              pendingInvitations: 0,
+              total: (aportes.count || 0) + (prestamos.count || 0) + (pagos.count || 0),
+            });
+          }
         }
-
-        const responses = await Promise.all(promises);
-        const results = await Promise.all(responses.map(res => res.ok ? res.json() : { count: 0 }));
-
-        if (userIsCreator) {
-          const [aportes, prestamos, pagos, invitaciones] = results;
-          setCounts({
-            aportesPendientes: aportes.count || 0,
-            prestamosPendientes: prestamos.count || 0,
-            pagosPendientes: pagos.count || 0,
-            invitacionesRespondidas: invitaciones.count || 0,
-            aportesAprobados: 0,
-            prestamosAprobados: 0,
-            pagosAprobados: 0,
-            total: (aportes.count || 0) + (prestamos.count || 0) + (pagos.count || 0) + (invitaciones.count || 0),
-          });
-        } else {
-          const [aportes, prestamos, pagos] = results;
+      } else {
+        // No natilleraId, fetch pending invitations
+        const response = await fetchAPI('/invitaciones/count');
+        if (response.ok) {
+          const data = await response.json();
           setCounts({
             aportesPendientes: 0,
             prestamosPendientes: 0,
             pagosPendientes: 0,
             invitacionesRespondidas: 0,
-            aportesAprobados: aportes.count || 0,
-            prestamosAprobados: prestamos.count || 0,
-            pagosAprobados: pagos.count || 0,
-            total: (aportes.count || 0) + (prestamos.count || 0) + (pagos.count || 0),
+            aportesAprobados: 0,
+            prestamosAprobados: 0,
+            pagosAprobados: 0,
+            pendingInvitations: data.count || 0,
+            total: data.count || 0,
           });
         }
       }
@@ -101,8 +124,8 @@ export function useNotifications() {
 
   useEffect(() => {
     fetchNotifications();
-    // Refrescar cada 5 minutos en lugar de 30 segundos
-    const interval = setInterval(fetchNotifications, 300000); // 5 minutos
+    // Refrescar cada 5 minutos
+    const interval = setInterval(fetchNotifications, 300000);
 
     // Escuchar eventos de invalidación
     const handleNotificationsUpdate = (event: CustomEvent) => {
@@ -118,6 +141,7 @@ export function useNotifications() {
           aportesAprobados: 0,
           prestamosAprobados: 0,
           pagosAprobados: 0,
+          pendingInvitations: 0,
           total: (aportes.count || 0) + (prestamos.count || 0) + (pagos.count || 0) + (invitaciones.count || 0),
         });
       } else {
@@ -130,6 +154,7 @@ export function useNotifications() {
           aportesAprobados: aportes.count || 0,
           prestamosAprobados: prestamos.count || 0,
           pagosAprobados: pagos.count || 0,
+          pendingInvitations: 0,
           total: (aportes.count || 0) + (prestamos.count || 0) + (pagos.count || 0),
         });
       }
