@@ -100,7 +100,20 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      
       <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+         {/* Sección de invitación a la app oficial */}
+      <div className="mb-8 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 rounded-xl shadow-md">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold mb-2">¿Quieres unirte a Natillera App oficial?</h2>
+            <p className="text-blue-100">Descubre todas las funciones premium y únete a la comunidad oficial</p>
+          </div>
+          <button className="bg-white text-blue-600 px-6 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors">
+            Unirme ahora
+          </button>
+        </div>
+      </div>
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Natilleras Activas</h1>
           <Link href="/natilleras/crear">

@@ -4,7 +4,6 @@ import MiembroView from '@/components/natilleras/MiembroView';
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase';
 import { fetchAPI, formatCurrency } from '@/lib/api';
 import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';

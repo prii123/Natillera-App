@@ -1,18 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { auth } from '@/lib/firebase';
 import { fetchAPI, formatCurrency } from '@/lib/api';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { NatilleraProvider, useNatillera } from '@/contexts/NatilleraContext';
 import Navbar from '@/components/Navbar';
-
-interface User {
-  id: number;
-  full_name: string;
-  username: string;
-}
+import { User } from '@/types';
 
 interface Aporte {
   id: number;
@@ -25,24 +19,13 @@ interface Aporte {
   user: User;
 }
 
-interface Natillera {
-  id: number;
-  name: string;
-  monthly_amount: number;
-  creator_id: number;
-}
-
-export default function AportesPage() {
-  const router = useRouter();
-  const params = useParams();
-  const id = params.id as string;
-  const [natillera, setNatillera] = useState<Natillera | null>(null);
+function AportesPageContent() {
+  const { natillera, user, userRole, isLoading, error } = useNatillera();
   const [aportes, setAportes] = useState<Aporte[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isCreator, setIsCreator] = useState(false);
-  const [userId, setUserId] = useState<number | null>(null);
+  const [loadingAportes, setLoadingAportes] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [amount, setAmount] = useState('');
+
   // Generar los próximos 12 meses en formato YYYY-MM
   const monthNames = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -64,60 +47,44 @@ export default function AportesPage() {
   const monthOptions = getNext12Months();
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
 
+  const isCreator = userRole === 'creator';
+
+  // Skeletons
+  const SkeletonBox = ({ className = '' }: { className?: string }) => (
+    <div className={`animate-pulse bg-gray-200 rounded ${className}`}></div>
+  );
+
+  // Cargar aportes cuando natillera esté disponible
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
-      if (!firebaseUser) {
-        router.push('/login');
-      } else {
-        await loadData();
-      }
-    });
-    return () => unsubscribe();
-  }, [id, router]);
+    if (natillera && user) {
+      loadAportes();
+    }
+  }, [natillera, user, selectedMonth]);
 
-  const loadData = async () => {
+  const loadAportes = async () => {
+    if (!natillera || !user) return;
+    setLoadingAportes(true);
     try {
-      const [userRes, natilleraRes] = await Promise.all([
-        fetchAPI('/users/me'),
-        fetchAPI(`/natilleras/${id}`)
-      ]);
-
-      let isCreatorUser = false;
-      let userData = null;
-      let natilleraData = null;
-
-      if (userRes.ok) {
-        userData = await userRes.json();
-        setUserId(userData.id);
+      let res;
+      if (isCreator) {
+        res = await fetchAPI(`/aportes/natillera/${natillera.id}`);
+      } else {
+        res = await fetchAPI(`/aportes/my-aportes?natillera_id=${natillera.id}`);
       }
-      if (natilleraRes.ok) {
-        natilleraData = await natilleraRes.json();
-        setNatillera(natilleraData);
+      if (res.ok) {
+        const data = await res.json();
+        setAportes(data);
       }
-      if (userData && natilleraData) {
-        isCreatorUser = natilleraData.creator_id === userData.id;
-        setIsCreator(isCreatorUser);
-        // fetch aportes según rol
-        let aportesRes;
-        if (isCreatorUser) {
-          aportesRes = await fetchAPI(`/aportes/natillera/${id}`);
-        } else {
-          aportesRes = await fetchAPI(`/aportes/my-aportes?natillera_id=${id}`);
-        }
-        if (aportesRes.ok) {
-          const aportesData = await aportesRes.json();
-          setAportes(aportesData);
-        }
-      }
-      setLoading(false);
     } catch (error) {
-      console.error('Error cargando datos:', error);
-      setLoading(false);
+      console.error('Error loading aportes:', error);
+    } finally {
+      setLoadingAportes(false);
     }
   };
 
   const handleCreateAporte = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!natillera) return;
 
     const parsedAmount = parseFloat(amount.replace(/[^\d.-]/g, ''));
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -130,7 +97,7 @@ export default function AportesPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          natillera_id: parseInt(id),
+          natillera_id: natillera.id,
           amount: parsedAmount,
           month: selectedMonth.month,
           year: selectedMonth.year
@@ -142,7 +109,7 @@ export default function AportesPage() {
         setAmount('');
         setSelectedMonth(monthOptions[0].value);
         setShowForm(false);
-        await loadData();
+        loadAportes();
       } else {
         const error = await response.json();
         toast.error(error.detail || 'Error al registrar aporte');
@@ -154,10 +121,23 @@ export default function AportesPage() {
 
 
 
-  if (loading) {
+  if (isLoading || loadingAportes) {
+    return (
+      <div className="min-h-screen bg-white">
+        <Navbar />
+        <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <SkeletonBox className="h-10 w-32 mb-4" />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (error || !natillera || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Cargando...</div>
+        <div className="text-xl">{error || 'Natillera no encontrada'}</div>
       </div>
     );
   }
@@ -166,10 +146,42 @@ export default function AportesPage() {
   const aprobados = aportes.filter((a) => a.status === 'aprobado');
   // const rechazados = aportes.filter((a) => a.status === 'rechazado');
 
-  const misAportes = aportes.filter((a) => a.user_id === userId && a.status === 'pendiente');
+  const misAportes = aportes.filter((a) => a.user_id === user!.id && a.status === 'pendiente');
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Navbar>
+        {natillera && (
+          <>
+            {isCreator && (
+              <Link
+                href={`/natilleras/${natillera.id}/transacciones`}
+                className="flex flex-col items-center px-3 py-2 rounded-lg hover:bg-secondary/90 hover:text-white transition-colors group"
+                title="Transacciones"
+              >
+                <span className="text-2xl group-hover:scale-110 transition-transform">💳</span>
+                <span className="text-xs font-semibold mt-1">Transacciones</span>
+              </Link>
+            )}
+            <Link
+              href={`/natilleras/${natillera.id}/prestamos`}
+              className="flex flex-col items-center px-3 py-2 rounded-lg hover:bg-accent/90 hover:text-white transition-colors group"
+              title="Préstamos"
+            >
+              <span className="text-2xl group-hover:scale-110 transition-transform">💸</span>
+              <span className="text-xs font-semibold mt-1">Préstamos</span>
+            </Link>
+            <Link
+              href={`/natilleras/${natillera.id}`}
+              className="flex flex-col items-center px-3 py-2 rounded-lg hover:bg-primary/90 hover:text-white transition-colors group"
+              title="Volver a Natillera"
+            >
+              <span className="text-2xl group-hover:scale-110 transition-transform">🏠</span>
+              <span className="text-xs font-semibold mt-1">Natillera</span>
+            </Link>
+          </>
+        )}
+      </Navbar>
       <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
         <div className="bg-white p-6 rounded-xl shadow-md mb-6">
           <h1 className="text-3xl font-bold">💰 Aportes - {natillera?.name}</h1>
@@ -328,3 +340,12 @@ export default function AportesPage() {
     </div>
   );
 }
+
+export default function AportesPage({ params }: { params: { id: string } }) {
+  return (
+    <NatilleraProvider>
+      <AportesPageContent />
+    </NatilleraProvider>
+  );
+}
+

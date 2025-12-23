@@ -4,7 +4,6 @@ import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import { fetchAPI } from '@/lib/api';
-import Link from 'next/link';
 import { toast } from 'sonner';
 
 interface User {
@@ -82,14 +81,9 @@ export default function CrearNatilleraPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-
+     
       <main className="max-w-3xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/dashboard">
-            <button className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors">
-              ← Volver
-            </button>
-          </Link>
           <h1 className="text-3xl font-bold">Crear Nueva Natillera</h1>
         </div>
 
