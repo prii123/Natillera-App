@@ -3,82 +3,13 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signInWithRedirect, GoogleAuthProvider, getRedirectResult } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-
-  useEffect(() => {
-    const handleRedirectResult = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          const user = result.user;
-
-          // Obtener token de Firebase
-          const token = await user.getIdToken();
-          localStorage.setItem('token', token);
-
-          // Extraer datos del perfil de Google
-          const displayName = user.displayName || 'Usuario';
-          const email = user.email;
-          const username = email?.split('@')[0] || 'user';
-
-          // Sincronizar con backend
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/sync-user`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              firebase_uid: user.uid,
-              email: email,
-              username: username,
-              full_name: displayName
-            })
-          });
-
-          if (response.ok) {
-            const userData = await response.json();
-            router.push('/dashboard');
-          } else {
-            const errorData = await response.json();
-            console.error('Error del servidor:', errorData);
-
-            if (errorData.detail && errorData.detail.includes('email ya está registrado')) {
-              setError('Esta cuenta de Google ya está registrada. Intenta iniciar sesión.');
-            } else {
-              setError(errorData.detail || 'Error al sincronizar con el servidor');
-            }
-
-            // Cerrar sesión de Firebase si hay error
-            await auth.signOut();
-            localStorage.removeItem('token');
-          }
-        }
-      } catch (error: any) {
-        console.error('Error completo:', error);
-
-        if (error.code === 'auth/popup-closed-by-user') {
-          setError('Autenticación cancelada. Intenta de nuevo.');
-        } else if (error.code === 'auth/popup-blocked') {
-          setError('Autenticación bloqueada. Habilita los popups para este sitio.');
-        } else if (error.code === 'auth/account-exists-with-different-credential') {
-          setError('Ya existe una cuenta con este correo usando otro método de autenticación.');
-        } else {
-          setError(error.message || 'Error al autenticar con Google');
-        }
-
-        localStorage.removeItem('token');
-      }
-    };
-
-    handleRedirectResult();
-  }, [router]);
 
   const handleGoogleLogin = async () => {
     setError('');
@@ -92,11 +23,65 @@ export default function LoginPage() {
         prompt: 'select_account'
       });
 
-      await signInWithRedirect(auth, provider);
-      // No need to set loading false here, as the page will redirect
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Obtener token de Firebase
+      const token = await user.getIdToken();
+      localStorage.setItem('token', token);
+
+      // Extraer datos del perfil de Google
+      const displayName = user.displayName || 'Usuario';
+      const email = user.email;
+      const username = email?.split('@')[0] || 'user';
+
+      // Sincronizar con backend
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/sync-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          firebase_uid: user.uid,
+          email: email,
+          username: username,
+          full_name: displayName
+        })
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        router.push('/dashboard');
+      } else {
+        const errorData = await response.json();
+        console.error('Error del servidor:', errorData);
+
+        if (errorData.detail && errorData.detail.includes('email ya está registrado')) {
+          setError('Esta cuenta de Google ya está registrada. Intenta iniciar sesión.');
+        } else {
+          setError(errorData.detail || 'Error al sincronizar con el servidor');
+        }
+
+        // Cerrar sesión de Firebase si hay error
+        await auth.signOut();
+        localStorage.removeItem('token');
+      }
     } catch (error: any) {
-      console.error('Error al iniciar redirect:', error);
-      setError('Error al redirigir a Google. Intenta de nuevo.');
+      console.error('Error completo:', error);
+
+      if (error.code === 'auth/popup-closed-by-user') {
+        setError('Autenticación cancelada. Intenta de nuevo.');
+      } else if (error.code === 'auth/popup-blocked') {
+        setError('Autenticación bloqueada. Habilita los popups para este sitio.');
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        setError('Ya existe una cuenta con este correo usando otro método de autenticación.');
+      } else {
+        setError(error.message || 'Error al autenticar con Google');
+      }
+
+      localStorage.removeItem('token');
+    } finally {
       setLoading(false);
     }
   };

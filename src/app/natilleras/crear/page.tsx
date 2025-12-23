@@ -82,30 +82,6 @@ export default function CrearNatilleraPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navbar */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard" className="flex items-center gap-2">
-                <span className="text-2xl">🪙</span>
-                <span className="text-xl font-bold text-green-600">Natillera</span>
-              </Link>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-gray-700">
-                Hola, {user?.full_name || 'Usuario'}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Cerrar Sesión
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
 
       <main className="max-w-3xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4 mb-8">

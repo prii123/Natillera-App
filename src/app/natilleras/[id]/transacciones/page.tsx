@@ -1,12 +1,12 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase';
 import { fetchAPI, formatCurrency } from '@/lib/api';
-import Link from 'next/link';
 import { toast } from 'sonner';
+import { NatilleraProvider, useNatillera } from '@/contexts/NatilleraContext';
 import Navbar from '@/components/Navbar';
+import Link from 'next/link';
 
 interface Creador {
   email: string;
@@ -40,74 +40,35 @@ interface Balance {
   capital_disponible: number;
 }
 
-interface Natillera {
-  id: number;
-  name: string;
-  creator_id: number;
-}
-
-export default function TransaccionesPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+function TransaccionesPageContent() {
+  const { natillera, userRole, isLoading, error, refreshNatillera } = useNatillera();
   const router = useRouter();
-  const [natillera, setNatillera] = useState<Natillera | null>(null);
   const [transacciones, setTransacciones] = useState<Transaccion[]>([]);
   const [balance, setBalance] = useState<Balance | null>(null);
-  const [loadingHeader, setLoadingHeader] = useState(true);
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [loadingTransacciones, setLoadingTransacciones] = useState(true);
-  const [isCreator, setIsCreator] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [type, setType] = useState<'efectivo' | 'prestamo' | 'pago_prestamos' | 'pago_prestamo_pendiente' | 'ingreso' | 'gasto'>('ingreso');
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
-      if (!firebaseUser) {
-        router.push('/login');
-      } else {
-        await loadHeader();
-      }
-    });
-    return () => unsubscribe();
-    // eslint-disable-next-line
-  }, [id, router]);
+  const isCreator = userRole === 'creator';
 
-  // Cargar cabecera y natillera
-  const loadHeader = async () => {
-    setLoadingHeader(true);
-    setLoadingBalance(true);
-    setLoadingTransacciones(true);
-    try {
-      const [userRes, natilleraRes] = await Promise.all([
-        fetchAPI('/users/me'),
-        fetchAPI(`/natilleras/${id}`)
-      ]);
-      if (userRes.ok) {
-        const userData = await userRes.json();
-        if (natilleraRes.ok) {
-          const natilleraData = await natilleraRes.json();
-          setNatillera(natilleraData);
-          setIsCreator(natilleraData.creator_id === userData.id);
-        }
-      }
-      setLoadingHeader(false);
-      // Balance y transacciones se cargan aparte
+  // Cargar balance y transacciones cuando natillera esté disponible
+  useEffect(() => {
+    if (natillera) {
       loadBalance();
       loadTransacciones();
-    } catch (error) {
-      setLoadingHeader(false);
-      setLoadingBalance(false);
-      setLoadingTransacciones(false);
     }
-  };
+  }, [natillera]);
 
-  // Cargar balance por separado
+  // Cargar balance
   const loadBalance = async () => {
+    if (!natillera) return;
     setLoadingBalance(true);
     try {
-      const balanceRes = await fetchAPI(`/transacciones/natilleras/${id}/balance`);
+      const balanceRes = await fetchAPI(`/transacciones/natilleras/${natillera.id}/balance`);
       if (balanceRes.ok) {
         const balanceData = await balanceRes.json();
         setBalance(balanceData);
@@ -118,11 +79,12 @@ export default function TransaccionesPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  // Cargar transacciones por separado
+  // Cargar transacciones
   const loadTransacciones = async () => {
+    if (!natillera) return;
     setLoadingTransacciones(true);
     try {
-      const transaccionesRes = await fetchAPI(`/transacciones/natilleras/${id}/transacciones`);
+      const transaccionesRes = await fetchAPI(`/transacciones/natilleras/${natillera.id}/transacciones`);
       if (transaccionesRes.ok) {
         const transaccionesData = await transaccionesRes.json();
         setTransacciones(transaccionesData);
@@ -135,6 +97,7 @@ export default function TransaccionesPage({ params }: { params: Promise<{ id: st
 
   const handleCreateTransaccion = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!natillera) return;
 
     const parsedAmount = parseFloat(amount.replace(/[^\d.-]/g, ''));
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -154,7 +117,7 @@ export default function TransaccionesPage({ params }: { params: Promise<{ id: st
 
     try {
       const payload = {
-        natillera_id: parseInt(id),
+        natillera_id: natillera!.id,
         tipo: type,
         categoria: category.trim(),
         monto: parsedAmount,
@@ -174,11 +137,9 @@ export default function TransaccionesPage({ params }: { params: Promise<{ id: st
         setDescription('');
         setShowForm(false);
         // Recargar datos progresivamente
-        await Promise.all([
-          loadHeader(),
-          loadBalance(),
-          loadTransacciones()
-        ]);
+        await refreshNatillera();
+        loadBalance();
+        loadTransacciones();
       } else {
         const error = await response.json();
         toast.error(error.detail || 'Error al registrar transacción');
@@ -188,22 +149,15 @@ export default function TransaccionesPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  const handleLogout = async () => {
-    await auth.signOut();
-    localStorage.removeItem('token');
-    router.push('/');
-  };
-
-
   // Skeletons
   const SkeletonBox = ({ className = '' }: { className?: string }) => (
     <div className={`animate-pulse bg-gray-200 rounded ${className}`}></div>
   );
 
-  if (loadingHeader) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-white">
-        <nav className="bg-gradient-to-r from-primary to-secondary shadow-md text-white h-16" />
+        <Navbar />
         <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
           <div className="mb-6">
             <SkeletonBox className="h-10 w-32 mb-4" />
@@ -216,26 +170,34 @@ export default function TransaccionesPage({ params }: { params: Promise<{ id: st
     );
   }
 
+  if (error || !natillera) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl">{error || 'Natillera no encontrada'}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50" >
       <Navbar>
-        {isCreator && natillera && (
+        {natillera && (
           <>
             <Link
-              href={`/natilleras/${natillera.id}/transacciones`}
-              className="flex flex-col items-center px-3 py-2 rounded-lg hover:bg-secondary/90 hover:text-white transition-colors group"
-              title="Transacciones"
-            >
-              <span className="text-2xl group-hover:scale-110 transition-transform">💳</span>
-              <span className="text-xs font-semibold mt-1">Transacciones</span>
-            </Link>
-            <Link
-              href={`/natilleras/${natillera.id}/prestamos`}
+              href={`/natilleras/${natillera!.id}/prestamos`}
               className="flex flex-col items-center px-3 py-2 rounded-lg hover:bg-accent/90 hover:text-white transition-colors group"
               title="Préstamos"
             >
               <span className="text-2xl group-hover:scale-110 transition-transform">💸</span>
               <span className="text-xs font-semibold mt-1">Préstamos</span>
+            </Link>
+            <Link
+              href={`/natilleras/${natillera!.id}`}
+              className="flex flex-col items-center px-3 py-2 rounded-lg hover:bg-primary/90 hover:text-white transition-colors group"
+              title="Volver a Natillera"
+            >
+              <span className="text-2xl group-hover:scale-110 transition-transform">🏠</span>
+              <span className="text-xs font-semibold mt-1">Natillera</span>
             </Link>
           </>
         )}
@@ -246,7 +208,7 @@ export default function TransaccionesPage({ params }: { params: Promise<{ id: st
           className="p-6 rounded-xl shadow-lg mb-6 border"
           style={{ background: 'linear-gradient(135deg, var(--color-surface) 60%, var(--color-secondary) 100%)', borderColor: 'var(--color-secondary)', color: 'var(--color-secondary-dark)' }}
         >
-          <h1 className="text-3xl font-bold drop-shadow">💳 Balance y Transacciones - {natillera?.name}</h1>
+          <h1 className="text-3xl font-bold drop-shadow">💳 Balance y Transacciones - {natillera!.name}</h1>
         </div>
 
         {/* Balance Skeleton o real */}
@@ -495,5 +457,13 @@ export default function TransaccionesPage({ params }: { params: Promise<{ id: st
         </div>
       </main>
     </div>
+  );
+}
+
+export default function TransaccionesPage() {
+  return (
+    <NatilleraProvider>
+      <TransaccionesPageContent />
+    </NatilleraProvider>
   );
 }

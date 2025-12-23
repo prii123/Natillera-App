@@ -1,16 +1,16 @@
-
 "use client";
 import CreadorView from '@/components/natilleras/CreadorView';
 import MiembroView from '@/components/natilleras/MiembroView';
 
 import { useEffect, useState, useMemo } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import { fetchAPI, formatCurrency } from '@/lib/api';
 import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import { useInvalidateNotifications } from '@/hooks/useNotifications';
+import { NatilleraProvider, useNatillera } from '@/contexts/NatilleraContext';
 
 interface User {
   id: number;
@@ -77,25 +77,20 @@ const calcularAportesTotales = (natillera: any, aportes: Aporte[]) => {
   }));
 };
 
-// Next.js App Router: params siempre es un objeto síncrono
-export default function NatilleraDetallePage() {
+function NatilleraPageContent() {
+  const { natillera, userRole, isLoading, error } = useNatillera();
   const [estadisticas, setEstadisticas] = useState<any>(null);
   const [loadingEstadisticas, setLoadingEstadisticas] = useState(true);
-  const params = useParams();
-  const id = params.id as string;
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [natillera, setNatillera] = useState<Natillera | null>(null);
   const [balance, setBalance] = useState<Balance | null>(null);
-  const [loadingHeader, setLoadingHeader] = useState(true);
   const [loadingBalance, setLoadingBalance] = useState(true);
-  const [loadingMembers, setLoadingMembers] = useState(true);
-  const [isCreator, setIsCreator] = useState(false);
   const [aportesPendientes, setAportesPendientes] = useState<Aporte[]>([]);
   const [loadingAportes, setLoadingAportes] = useState(true);
   const [aportes, setAportes] = useState<Aporte[]>([]);
 
   const invalidateNotifications = useInvalidateNotifications();
+
+  const isCreator = userRole === 'creator';
 
   // Calcular aportes totales usando useMemo para que se actualice cuando cambien los aportes
   const aportesTotales = useMemo(() => {
@@ -172,11 +167,6 @@ export default function NatilleraDetallePage() {
     fetchAportesYEstadisticas();
   }, [isCreator, natillera]);
 
-
-
-
-
-
   // Cargar aportes pendientes solo para el creador
   useEffect(() => {
     if (!isCreator || !natillera) return;
@@ -192,7 +182,6 @@ export default function NatilleraDetallePage() {
       setLoadingAportes(false);
     };
     fetchPendientes();
-    // eslint-disable-next-line
   }, [isCreator, natillera]);
 
   // Refrescar aportes pendientes tras aprobar/rechazar
@@ -249,48 +238,12 @@ export default function NatilleraDetallePage() {
     }
   };
 
-
-  // Cargar datos de usuario y natillera al iniciar sesión
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
-      if (!firebaseUser) {
-        router.push('/login');
-      } else {
-        setLoadingHeader(true);
-        try {
-          const [userRes, natilleraRes] = await Promise.all([
-            fetchAPI('/users/me'),
-            fetchAPI(`/natilleras/${id}`)
-          ]);
-          if (userRes.ok) {
-            const userData = await userRes.json();
-            setUser(userData);
-            if (natilleraRes.ok) {
-              const natilleraData = await natilleraRes.json();
-              setNatillera(natilleraData);
-              setIsCreator(natilleraData.creator_id === userData.id);
-              setLoadingMembers(false);
-            } else {
-              setLoadingMembers(false);
-            }
-          } else {
-            setLoadingMembers(false);
-          }
-        } catch (error) {
-          setLoadingMembers(false);
-        }
-        setLoadingHeader(false);
-      }
-    });
-    return () => unsubscribe();
-  }, [id, router]);
-
   // Skeletons
   const SkeletonBox = ({ className = '' }: { className?: string }) => (
     <div className={`animate-pulse bg-gray-200 rounded ${className}`}></div>
   );
 
-  if (loadingHeader) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-white">
         <nav className="bg-gradient-to-r from-primary to-secondary shadow-md text-white h-16" />
@@ -319,10 +272,10 @@ export default function NatilleraDetallePage() {
     );
   }
 
-  if (!natillera) {
+  if (error || !natillera) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Natillera no encontrada</div>
+        <div className="text-xl">{error || 'Natillera no encontrada'}</div>
       </div>
     );
   }
@@ -393,7 +346,7 @@ export default function NatilleraDetallePage() {
             }}
             balance={balance}
             loadingBalance={loadingBalance}
-            loadingMembers={loadingMembers}
+            loadingMembers={false} // Ya manejado por el contexto
             SkeletonBox={SkeletonBox}
             loadingAportes={loadingAportes}
           />
@@ -409,6 +362,14 @@ export default function NatilleraDetallePage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function Page({ params }: { params: { id: string } }) {
+  return (
+    <NatilleraProvider>
+      <NatilleraPageContent />
+    </NatilleraProvider>
   );
 }
 

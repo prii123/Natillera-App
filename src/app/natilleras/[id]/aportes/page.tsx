@@ -152,45 +152,7 @@ export default function AportesPage() {
     }
   };
 
-  const handleApprove = async (aporteId: number) => {
-    try {
-      const response = await fetchAPI(`/aportes/${aporteId}/approve`, {
-        method: 'POST'
-      });
 
-      if (response.ok) {
-        toast.success('Aporte aprobado');
-        await loadData();
-      } else {
-        toast.error('Error al aprobar aporte');
-      }
-    } catch (error) {
-      toast.error('Error al aprobar aporte');
-    }
-  };
-
-  const handleReject = async (aporteId: number) => {
-    try {
-      const response = await fetchAPI(`/aportes/${aporteId}/reject`, {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        toast.success('Aporte rechazado');
-        await loadData();
-      } else {
-        toast.error('Error al rechazar aporte');
-      }
-    } catch (error) {
-      toast.error('Error al rechazar aporte');
-    }
-  };
-
-  const handleLogout = async () => {
-    await auth.signOut();
-    localStorage.removeItem('token');
-    router.push('/');
-  };
 
   if (loading) {
     return (
@@ -200,38 +162,14 @@ export default function AportesPage() {
     );
   }
 
-  const pendientes = aportes.filter((a) => a.status === 'pendiente');
+  // const pendientes = aportes.filter((a) => a.status === 'pendiente');
   const aprobados = aportes.filter((a) => a.status === 'aprobado');
-  const rechazados = aportes.filter((a) => a.status === 'rechazado');
+  // const rechazados = aportes.filter((a) => a.status === 'rechazado');
 
   const misAportes = aportes.filter((a) => a.user_id === userId && a.status === 'pendiente');
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar>
-        {natillera && (
-          <>
-            {isCreator && (
-              <Link
-                href={`/natilleras/${natillera.id}/transacciones`}
-                className="flex flex-col items-center px-3 py-2 rounded-lg hover:bg-secondary/90 hover:text-white transition-colors group"
-                title="Transacciones"
-              >
-                <span className="text-2xl group-hover:scale-110 transition-transform">💳</span>
-                <span className="text-xs font-semibold mt-1">Transacciones</span>
-              </Link>
-            )}
-            <Link
-              href={`/natilleras/${natillera.id}/prestamos`}
-              className="flex flex-col items-center px-3 py-2 rounded-lg hover:bg-accent/90 hover:text-white transition-colors group"
-              title="Préstamos"
-            >
-              <span className="text-2xl group-hover:scale-110 transition-transform">💸</span>
-              <span className="text-xs font-semibold mt-1">Préstamos</span>
-            </Link>
-          </>
-        )}
-      </Navbar>
       <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
         <div className="bg-white p-6 rounded-xl shadow-md mb-6">
           <h1 className="text-3xl font-bold">💰 Aportes - {natillera?.name}</h1>

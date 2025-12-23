@@ -133,6 +133,7 @@ const PrestamosMiembro: React.FC<Props> = ({ natillera, user }) => {
   };
 
   const handleSolicitarPrestamo = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError("");
     setSuccess("");
     const monto = parseFloat(montoSolicitado);
@@ -169,7 +170,7 @@ const PrestamosMiembro: React.FC<Props> = ({ natillera, user }) => {
         setMontoSolicitado("");
         setFechaInicio("");
         setFechaVencimiento("");
-        setShowForm(false);
+        // setShowForm(false);
       } else {
         const err = await res.json();
         let errorMsg = "Error al solicitar préstamo";
