@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  natillera-nextjs:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      # Agrega aquí las variables de entorno de Firebase si es necesario
+      # - NEXT_PUBLIC_FIREBASE_API_KEY=your_key
+      # - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_domain
+      # etc.
+    restart: unless-stopped
