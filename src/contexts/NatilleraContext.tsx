@@ -1,9 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { auth } from '@/lib/firebase';
 import { fetchAPI } from '@/lib/api';
 import { useRouter, useParams } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface User {
   id: number;
@@ -47,6 +47,7 @@ export function NatilleraProvider({ children }: NatilleraProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const params = useParams();
+  const { firebaseUser, loading: authLoading } = useAuth();
 
   const natilleraId = params?.id as string;
 
@@ -58,8 +59,7 @@ export function NatilleraProvider({ children }: NatilleraProviderProps) {
       setError(null);
 
       // Verificar autenticación
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
+      if (!firebaseUser) {
         router.push('/login');
         return;
       }
@@ -112,25 +112,22 @@ export function NatilleraProvider({ children }: NatilleraProviderProps) {
   };
 
   useEffect(() => {
-    loadNatilleraData();
-  }, [natilleraId]);
+    if (!authLoading && firebaseUser && natilleraId) {
+      loadNatilleraData();
+    } else if (!authLoading && !firebaseUser) {
+      router.push('/login');
+    }
+  }, [natilleraId, firebaseUser, authLoading]);
 
   // Escuchar cambios de autenticación
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (!user) {
-        setNatillera(null);
-        setUser(null);
-        setUserRole(null);
-        setIsLoading(false);
-      } else if (natilleraId) {
-        // Si hay usuario y natilleraId, recargar datos
-        loadNatilleraData();
-      }
-    });
-
-    return () => unsubscribe();
-  }, [natilleraId]);
+    if (!authLoading && !firebaseUser) {
+      setNatillera(null);
+      setUser(null);
+      setUserRole(null);
+      setIsLoading(false);
+    }
+  }, [firebaseUser, authLoading]);
 
   const value: NatilleraContextType = {
     natillera,
