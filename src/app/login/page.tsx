@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signInWithRedirect, GoogleAuthProvider, getRedirectResult } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
@@ -12,35 +12,23 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    console.log('LoginPage: Component mounted - checking authentication state...');
+    console.log('LoginPage: Setting up auth listener...');
 
-    const handleAuthentication = async () => {
-      try {
-        // Primero verificar si hay un resultado de redirección pendiente
-        console.log('LoginPage: Checking for redirect result...');
-        const result = await getRedirectResult(auth);
-        console.log('LoginPage: getRedirectResult returned:', result);
+    // Listener para cambios de estado de autenticación
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('LoginPage: Auth state changed:', user ? 'User logged in' : 'No user');
 
-        if (result) {
-          // Procesar resultado de redirección
-          console.log('LoginPage: Processing redirect result...');
-          const user = result.user;
-          console.log('LoginPage: User authenticated via redirect:', user?.email);
-
+      if (user) {
+        try {
           // Obtener token de Firebase
           const token = await user.getIdToken();
-          console.log('LoginPage: Token obtained, length:', token?.length);
           localStorage.setItem('token', token);
 
-          // Extraer datos del perfil de Google
-          const displayName = user.displayName || 'Usuario';
-          const email = user.email;
-          const username = email?.split('@')[0] || 'user';
-
-          console.log('LoginPage: Syncing with backend...');
-          console.log('LoginPage: API URL:', process.env.NEXT_PUBLIC_API_URL);
-
           // Sincronizar con backend
+          const displayName = user.displayName || 'Usuario';
+          const email = user.email!;
+          const username = email.split('@')[0];
+
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/sync-user`, {
             method: 'POST',
             headers: {
@@ -55,65 +43,38 @@ export default function LoginPage() {
             })
           });
 
-          console.log('LoginPage: Backend response status:', response.status);
-
           if (response.ok) {
-            const userData = await response.json();
-            console.log('LoginPage: Backend sync successful, user data:', userData);
-            console.log('LoginPage: Redirecting to dashboard...');
+            console.log('LoginPage: Backend sync successful, redirecting to dashboard...');
             router.push('/dashboard');
-            return; // Salir para no ejecutar la verificación de usuario actual
           } else {
             const errorData = await response.json();
-            console.error('LoginPage: Backend sync error:', errorData);
-
-            if (errorData.detail && errorData.detail.includes('email ya está registrado')) {
-              setError('Esta cuenta de Google ya está registrada. Intenta iniciar sesión.');
-            } else {
-              setError(errorData.detail || 'Error al sincronizar con el servidor');
-            }
-
-            // Cerrar sesión de Firebase si hay error
+            console.error('LoginPage: Backend sync failed:', errorData);
+            setError(errorData.detail || 'Error al sincronizar con el servidor');
             await auth.signOut();
             localStorage.removeItem('token');
-            return;
           }
-        }
-
-        // Si no hay resultado de redirección, verificar usuario actual
-        console.log('LoginPage: No redirect result, checking current user...');
-        const currentUser = auth.currentUser;
-        const storedToken = localStorage.getItem('token');
-        console.log('LoginPage: Current user:', currentUser?.email || 'None');
-        console.log('LoginPage: Stored token exists:', !!storedToken);
-
-        if (currentUser && storedToken) {
-          console.log('LoginPage: User already authenticated, redirecting to dashboard');
-          router.push('/dashboard');
-        } else {
-          console.log('LoginPage: No authenticated user, staying on login page');
-        }
-
-      } catch (error: any) {
-        console.error('LoginPage: Error in authentication:', error);
-        console.error('LoginPage: Error code:', error.code);
-        console.error('LoginPage: Error message:', error.message);
-
-        if (error.code !== 'auth/redirect-cancelled-by-user') {
-          setError('Error al iniciar sesión: ' + error.message);
-        } else {
-          console.log('LoginPage: User cancelled redirect');
+        } catch (error) {
+          console.error('LoginPage: Error during login process:', error);
+          setError('Error al iniciar sesión');
         }
       }
-    };
+    });
 
-    handleAuthentication();
+    // Verificar si ya hay usuario autenticado
+    const currentUser = auth.currentUser;
+    const storedToken = localStorage.getItem('token');
+
+    if (currentUser && storedToken) {
+      console.log('LoginPage: User already authenticated, redirecting...');
+      router.push('/dashboard');
+    }
+
+    return () => unsubscribe();
   }, [router]);
 
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
-    console.log('LoginPage: Starting Google login process...');
 
     try {
       const provider = new GoogleAuthProvider();
@@ -123,14 +84,19 @@ export default function LoginPage() {
         prompt: 'select_account'
       });
 
-      console.log('LoginPage: Calling signInWithRedirect...');
-      await signInWithRedirect(auth, provider);
-      console.log('LoginPage: signInWithRedirect completed - should redirect now');
-      // La redirección se maneja en useEffect cuando el usuario regresa
+      // Usar popup para desarrollo local
+      const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+
+      if (isLocalhost) {
+        await signInWithPopup(auth, provider);
+      } else {
+        // Para producción, podrías usar redirect si es necesario
+        await signInWithPopup(auth, provider);
+      }
+
+      // El listener de onAuthStateChanged manejará la redirección
     } catch (error: any) {
-      console.error('LoginPage: Error in signInWithRedirect:', error);
-      console.error('LoginPage: Error code:', error.code);
-      console.error('LoginPage: Error message:', error.message);
+      console.error('LoginPage: Login error:', error);
       setError('Error al iniciar sesión: ' + error.message);
       setLoading(false);
     }

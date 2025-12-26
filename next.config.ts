@@ -5,8 +5,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Aplicar headers a todas las rutas
-        source: '/(.*)',
+        // Aplicar headers restrictivos a todas las rutas EXCEPTO login
+        source: '/((?!login).*)',
         headers: [
           {
             key: 'Cross-Origin-Opener-Policy',
