@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithRedirect, GoogleAuthProvider, getRedirectResult } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
@@ -11,9 +11,109 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  useEffect(() => {
+    console.log('LoginPage: Component mounted - checking authentication state...');
+
+    const handleAuthentication = async () => {
+      try {
+        // Primero verificar si hay un resultado de redirección pendiente
+        console.log('LoginPage: Checking for redirect result...');
+        const result = await getRedirectResult(auth);
+        console.log('LoginPage: getRedirectResult returned:', result);
+
+        if (result) {
+          // Procesar resultado de redirección
+          console.log('LoginPage: Processing redirect result...');
+          const user = result.user;
+          console.log('LoginPage: User authenticated via redirect:', user?.email);
+
+          // Obtener token de Firebase
+          const token = await user.getIdToken();
+          console.log('LoginPage: Token obtained, length:', token?.length);
+          localStorage.setItem('token', token);
+
+          // Extraer datos del perfil de Google
+          const displayName = user.displayName || 'Usuario';
+          const email = user.email;
+          const username = email?.split('@')[0] || 'user';
+
+          console.log('LoginPage: Syncing with backend...');
+          console.log('LoginPage: API URL:', process.env.NEXT_PUBLIC_API_URL);
+
+          // Sincronizar con backend
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/sync-user`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              firebase_uid: user.uid,
+              email: email,
+              username: username,
+              full_name: displayName
+            })
+          });
+
+          console.log('LoginPage: Backend response status:', response.status);
+
+          if (response.ok) {
+            const userData = await response.json();
+            console.log('LoginPage: Backend sync successful, user data:', userData);
+            console.log('LoginPage: Redirecting to dashboard...');
+            router.push('/dashboard');
+            return; // Salir para no ejecutar la verificación de usuario actual
+          } else {
+            const errorData = await response.json();
+            console.error('LoginPage: Backend sync error:', errorData);
+
+            if (errorData.detail && errorData.detail.includes('email ya está registrado')) {
+              setError('Esta cuenta de Google ya está registrada. Intenta iniciar sesión.');
+            } else {
+              setError(errorData.detail || 'Error al sincronizar con el servidor');
+            }
+
+            // Cerrar sesión de Firebase si hay error
+            await auth.signOut();
+            localStorage.removeItem('token');
+            return;
+          }
+        }
+
+        // Si no hay resultado de redirección, verificar usuario actual
+        console.log('LoginPage: No redirect result, checking current user...');
+        const currentUser = auth.currentUser;
+        const storedToken = localStorage.getItem('token');
+        console.log('LoginPage: Current user:', currentUser?.email || 'None');
+        console.log('LoginPage: Stored token exists:', !!storedToken);
+
+        if (currentUser && storedToken) {
+          console.log('LoginPage: User already authenticated, redirecting to dashboard');
+          router.push('/dashboard');
+        } else {
+          console.log('LoginPage: No authenticated user, staying on login page');
+        }
+
+      } catch (error: any) {
+        console.error('LoginPage: Error in authentication:', error);
+        console.error('LoginPage: Error code:', error.code);
+        console.error('LoginPage: Error message:', error.message);
+
+        if (error.code !== 'auth/redirect-cancelled-by-user') {
+          setError('Error al iniciar sesión: ' + error.message);
+        } else {
+          console.log('LoginPage: User cancelled redirect');
+        }
+      }
+    };
+
+    handleAuthentication();
+  }, [router]);
+
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
+    console.log('LoginPage: Starting Google login process...');
 
     try {
       const provider = new GoogleAuthProvider();
@@ -23,65 +123,15 @@ export default function LoginPage() {
         prompt: 'select_account'
       });
 
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      // Obtener token de Firebase
-      const token = await user.getIdToken();
-      localStorage.setItem('token', token);
-
-      // Extraer datos del perfil de Google
-      const displayName = user.displayName || 'Usuario';
-      const email = user.email;
-      const username = email?.split('@')[0] || 'user';
-
-      // Sincronizar con backend
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/sync-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          firebase_uid: user.uid,
-          email: email,
-          username: username,
-          full_name: displayName
-        })
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        router.push('/dashboard');
-      } else {
-        const errorData = await response.json();
-        console.error('Error del servidor:', errorData);
-
-        if (errorData.detail && errorData.detail.includes('email ya está registrado')) {
-          setError('Esta cuenta de Google ya está registrada. Intenta iniciar sesión.');
-        } else {
-          setError(errorData.detail || 'Error al sincronizar con el servidor');
-        }
-
-        // Cerrar sesión de Firebase si hay error
-        await auth.signOut();
-        localStorage.removeItem('token');
-      }
+      console.log('LoginPage: Calling signInWithRedirect...');
+      await signInWithRedirect(auth, provider);
+      console.log('LoginPage: signInWithRedirect completed - should redirect now');
+      // La redirección se maneja en useEffect cuando el usuario regresa
     } catch (error: any) {
-      console.error('Error completo:', error);
-
-      if (error.code === 'auth/popup-closed-by-user') {
-        setError('Autenticación cancelada. Intenta de nuevo.');
-      } else if (error.code === 'auth/popup-blocked') {
-        setError('Autenticación bloqueada. Habilita los popups para este sitio.');
-      } else if (error.code === 'auth/account-exists-with-different-credential') {
-        setError('Ya existe una cuenta con este correo usando otro método de autenticación.');
-      } else {
-        setError(error.message || 'Error al autenticar con Google');
-      }
-
-      localStorage.removeItem('token');
-    } finally {
+      console.error('LoginPage: Error in signInWithRedirect:', error);
+      console.error('LoginPage: Error code:', error.code);
+      console.error('LoginPage: Error message:', error.message);
+      setError('Error al iniciar sesión: ' + error.message);
       setLoading(false);
     }
   };
