@@ -20,7 +20,7 @@ export interface Natillera {
 
 export interface Aporte {
   id: number;
-  amount: string;
+  amount: number;
   month: number;
   year: number;
   user_id: number;
@@ -31,6 +31,7 @@ export interface Aporte {
   updated_at: string;
   user: User;
   natillera?: Natillera;
+  archivos_adjuntos_count?: number;
 }
 
 export interface Transaccion {

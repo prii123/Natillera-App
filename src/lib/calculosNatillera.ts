@@ -14,7 +14,7 @@ export function calcularAportesTotales(natillera: Natillera, aportes: Aporte[]) 
   }
   for (const aporte of aportesAprobados) {
     if (totalesPorId[aporte.user_id] !== undefined) {
-      totalesPorId[aporte.user_id] += parseFloat(aporte.amount);
+      totalesPorId[aporte.user_id] += aporte.amount;
     }
   }
   const totalGlobal = Object.values(totalesPorId).reduce((a, b) => a + b, 0);

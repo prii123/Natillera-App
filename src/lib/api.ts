@@ -46,4 +46,58 @@ export function formatCurrency(amount: number) {
   }).format(amount);
 }
 
+export async function uploadFile(endpoint: string, file: File, additionalData?: Record<string, any>) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  console.log('uploadFile - Token:', token ? 'Present' : 'Not found');
+  console.log('uploadFile - Endpoint:', endpoint);
+  console.log('uploadFile - File:', file.name, file.size, file.type);
+
+  if (!token) {
+    console.error('uploadFile - No token found, redirecting to login');
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+    throw new Error('No autenticado');
+  }
+
+  const formData = new FormData();
+  formData.append('archivo', file);
+
+  if (additionalData) {
+    Object.entries(additionalData).forEach(([key, value]) => {
+      formData.append(key, String(value));
+      console.log('uploadFile - Additional data:', key, value);
+    });
+  }
+
+  const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
+  console.log('uploadFile - Full URL:', url);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    console.log('uploadFile - Response status:', response.status);
+
+    if (response.status === 401) {
+      console.log('uploadFile - 401 Unauthorized, removing token');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+      throw new Error('No autorizado');
+    }
+
+    return response;
+  } catch (error) {
+    console.error('uploadFile - Fetch error:', error);
+    throw error;
+  }
+}
+
 export { API_URL };
