@@ -3,22 +3,27 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   async headers() {
-    return [
-      {
-        // Aplicar headers restrictivos a todas las rutas EXCEPTO login
-        source: '/((?!login).*)',
-        headers: [
-          {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin-allow-popups'
-          },
-          {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'credentialless'
-          }
-        ]
-      }
-    ];
+    // Solo aplicar headers restrictivos en producción
+    if (process.env.NODE_ENV === 'production') {
+      return [
+        {
+          source: '/(.*)',
+          headers: [
+            {
+              key: 'Cross-Origin-Opener-Policy',
+              value: 'same-origin-allow-popups'
+            },
+            {
+              key: 'Cross-Origin-Embedder-Policy',
+              value: 'credentialless'
+            }
+          ]
+        }
+      ];
+    }
+
+    // En desarrollo, no aplicar headers restrictivos
+    return [];
   }
 };
 
