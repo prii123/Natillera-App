@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
@@ -13,6 +13,24 @@ export default function LoginPage() {
 
   useEffect(() => {
     console.log('LoginPage: Setting up auth listener...');
+
+    const handleAuth = async () => {
+      try {
+        // Primero verificar si hay un resultado de redirect pendiente
+        console.log('LoginPage: Checking for redirect result...');
+        const result = await getRedirectResult(auth);
+        console.log('LoginPage: Redirect result:', result);
+
+        if (result?.user) {
+          console.log('LoginPage: Processing redirect result for user:', result.user.email);
+          // El listener de onAuthStateChanged se encargará del procesamiento
+        }
+      } catch (error: any) {
+        console.log('LoginPage: No redirect result or error:', error.message);
+      }
+    };
+
+    handleAuth();
 
     // Listener para cambios de estado de autenticación
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -29,6 +47,7 @@ export default function LoginPage() {
           const email = user.email!;
           const username = email.split('@')[0];
 
+          console.log('LoginPage: Syncing with backend at:', process.env.NEXT_PUBLIC_API_URL);
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/sync-user`, {
             method: 'POST',
             headers: {
@@ -84,20 +103,37 @@ export default function LoginPage() {
         prompt: 'select_account'
       });
 
-      // Usar popup para desarrollo local
+      // Determinar si usar popup o redirect basado en el entorno
       const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+      const isProduction = !isLocalhost;
+
+      console.log('LoginPage: Environment check - localhost:', isLocalhost, 'production:', isProduction);
 
       if (isLocalhost) {
+        console.log('LoginPage: Using popup auth for development');
         await signInWithPopup(auth, provider);
+        console.log('LoginPage: Popup auth completed');
       } else {
-        // Para producción, podrías usar redirect si es necesario
-        await signInWithPopup(auth, provider);
+        console.log('LoginPage: Using redirect auth for production');
+        await signInWithRedirect(auth, provider);
+        console.log('LoginPage: Redirect initiated - page will reload');
+        // No hay más código aquí porque la página se recargará
       }
 
-      // El listener de onAuthStateChanged manejará la redirección
     } catch (error: any) {
       console.error('LoginPage: Login error:', error);
-      setError('Error al iniciar sesión: ' + error.message);
+
+      // Manejar errores específicos
+      if (error.code === 'auth/popup-blocked') {
+        setError('El popup fue bloqueado. Intente nuevamente o use un navegador diferente.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        setError('La autenticación fue cancelada.');
+      } else if (error.code === 'auth/redirect-cancelled-by-user') {
+        setError('La autenticación fue cancelada.');
+      } else {
+        setError('Error al iniciar sesión: ' + error.message);
+      }
+
       setLoading(false);
     }
   };
