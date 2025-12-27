@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
     if (process.env.NODE_ENV === 'production') {
       return [
         {
-          source: '/(.*)',
+          source: '/((?!login|auth).*)',
           headers: [
             {
               key: 'Cross-Origin-Opener-Policy',
