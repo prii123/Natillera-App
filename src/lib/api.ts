@@ -1,6 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-console.log('API_URL:', API_URL);
+// console.log('API_URL:', API_URL);
 
 interface FetchOptions extends RequestInit {
   body?: any;
@@ -48,9 +48,9 @@ export function formatCurrency(amount: number) {
 
 export async function uploadFile(endpoint: string, file: File, additionalData?: Record<string, any>) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  console.log('uploadFile - Token:', token ? 'Present' : 'Not found');
-  console.log('uploadFile - Endpoint:', endpoint);
-  console.log('uploadFile - File:', file.name, file.size, file.type);
+  // console.log('uploadFile - Token:', token ? 'Present' : 'Not found');
+  // console.log('uploadFile - Endpoint:', endpoint);
+  // console.log('uploadFile - File:', file.name, file.size, file.type);
 
   if (!token) {
     console.error('uploadFile - No token found, redirecting to login');
@@ -66,12 +66,12 @@ export async function uploadFile(endpoint: string, file: File, additionalData?: 
   if (additionalData) {
     Object.entries(additionalData).forEach(([key, value]) => {
       formData.append(key, String(value));
-      console.log('uploadFile - Additional data:', key, value);
+      // console.log('uploadFile - Additional data:', key, value);
     });
   }
 
   const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
-  console.log('uploadFile - Full URL:', url);
+  // console.log('uploadFile - Full URL:', url);
 
   try {
     const response = await fetch(url, {
@@ -82,10 +82,10 @@ export async function uploadFile(endpoint: string, file: File, additionalData?: 
       body: formData,
     });
 
-    console.log('uploadFile - Response status:', response.status);
+    // console.log('uploadFile - Response status:', response.status);
 
     if (response.status === 401) {
-      console.log('uploadFile - 401 Unauthorized, removing token');
+      // console.log('uploadFile - 401 Unauthorized, removing token');
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
         window.location.href = '/login';
@@ -95,7 +95,7 @@ export async function uploadFile(endpoint: string, file: File, additionalData?: 
 
     return response;
   } catch (error) {
-    console.error('uploadFile - Fetch error:', error);
+    // console.error('uploadFile - Fetch error:', error);
     throw error;
   }
 }
