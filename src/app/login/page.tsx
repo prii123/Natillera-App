@@ -1,95 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, getRedirectResult } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-
-  useEffect(() => {
-    console.log('LoginPage: Setting up auth listener...');
-
-    const handleAuth = async () => {
-      try {
-        // Primero verificar si hay un resultado de redirect pendiente
-        console.log('LoginPage: Checking for redirect result...');
-        const result = await getRedirectResult(auth);
-        console.log('LoginPage: Redirect result:', result);
-
-        if (result?.user) {
-          console.log('LoginPage: Processing redirect result for user:', result.user.email);
-          // El listener de onAuthStateChanged se encargará del procesamiento
-        }
-      } catch (error: any) {
-        console.log('LoginPage: No redirect result or error:', error.message);
-      }
-    };
-
-    handleAuth();
-
-    // Listener para cambios de estado de autenticación
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('LoginPage: Auth state changed:', user ? 'User logged in' : 'No user');
-
-      if (user) {
-        try {
-          // Obtener token de Firebase
-          const token = await user.getIdToken();
-          localStorage.setItem('token', token);
-
-          // Sincronizar con backend
-          const displayName = user.displayName || 'Usuario';
-          const email = user.email!;
-          const username = email.split('@')[0];
-
-          console.log('LoginPage: Syncing with backend at:', process.env.NEXT_PUBLIC_API_URL);
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/sync-user`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              firebase_uid: user.uid,
-              email: email,
-              username: username,
-              full_name: displayName
-            })
-          });
-
-          if (response.ok) {
-            console.log('LoginPage: Backend sync successful, redirecting to dashboard...');
-            router.push('/dashboard');
-          } else {
-            const errorData = await response.json();
-            console.error('LoginPage: Backend sync failed:', errorData);
-            setError(errorData.detail || 'Error al sincronizar con el servidor');
-            await auth.signOut();
-            localStorage.removeItem('token');
-          }
-        } catch (error) {
-          console.error('LoginPage: Error during login process:', error);
-          setError('Error al iniciar sesión');
-        }
-      }
-    });
-
-    // Verificar si ya hay usuario autenticado
-    const currentUser = auth.currentUser;
-    const storedToken = localStorage.getItem('token');
-
-    if (currentUser && storedToken) {
-      console.log('LoginPage: User already authenticated, redirecting...');
-      router.push('/dashboard');
-    }
-
-    return () => unsubscribe();
-  }, [router]);
 
   const handleGoogleLogin = async () => {
     setError('');
@@ -103,37 +23,66 @@ export default function LoginPage() {
         prompt: 'select_account'
       });
 
-      // Determinar si usar popup o redirect basado en el entorno
-      const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-      const isProduction = !isLocalhost;
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
 
-      console.log('LoginPage: Environment check - localhost:', isLocalhost, 'production:', isProduction);
+      // Obtener token de Firebase
+      const token = await user.getIdToken();
+      localStorage.setItem('token', token);
 
-      if (isLocalhost) {
-        console.log('LoginPage: Using popup auth for development');
-        await signInWithPopup(auth, provider);
-        console.log('LoginPage: Popup auth completed');
+      // Extraer datos del perfil de Google
+      const displayName = user.displayName || 'Usuario';
+      const email = user.email;
+      const username = email?.split('@')[0] || 'user';
+
+      // Sincronizar con backend
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/sync-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          firebase_uid: user.uid,
+          email: email,
+          username: username,
+          full_name: displayName
+        })
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        // console.log('Usuario sincronizado:', userData);
+        router.push('/dashboard');
       } else {
-        console.log('LoginPage: Using redirect auth for production');
-        await signInWithRedirect(auth, provider);
-        console.log('LoginPage: Redirect initiated - page will reload');
-        // No hay más código aquí porque la página se recargará
-      }
+        const errorData = await response.json();
+        console.error('Error del servidor:', errorData);
 
+        if (errorData.detail && errorData.detail.includes('email ya está registrado')) {
+          setError('Esta cuenta de Google ya está registrada. Intenta iniciar sesión.');
+        } else {
+          setError(errorData.detail || 'Error al sincronizar con el servidor');
+        }
+
+        // Cerrar sesión de Firebase si hay error
+        await auth.signOut();
+        localStorage.removeItem('token');
+      }
     } catch (error: any) {
-      console.error('LoginPage: Login error:', error);
+      console.error('Error completo:', error);
 
-      // Manejar errores específicos
-      if (error.code === 'auth/popup-blocked') {
-        setError('El popup fue bloqueado. Intente nuevamente o use un navegador diferente.');
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        setError('La autenticación fue cancelada.');
-      } else if (error.code === 'auth/redirect-cancelled-by-user') {
-        setError('La autenticación fue cancelada.');
+      if (error.code === 'auth/popup-closed-by-user') {
+        setError('Popup cerrado. Intenta de nuevo.');
+      } else if (error.code === 'auth/popup-blocked') {
+        setError('Popup bloqueado. Habilita los popups para este sitio.');
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        setError('Ya existe una cuenta con este correo usando otro método de autenticación.');
       } else {
-        setError('Error al iniciar sesión: ' + error.message);
+        setError(error.message || 'Error al autenticar con Google');
       }
 
+      localStorage.removeItem('token');
+    } finally {
       setLoading(false);
     }
   };
@@ -198,3 +147,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
