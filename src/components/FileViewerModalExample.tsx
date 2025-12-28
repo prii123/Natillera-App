@@ -1,5 +1,11 @@
 // Ejemplo de uso del FileViewerModal en la página de préstamos
 // Este código muestra cómo reutilizar el modal en diferentes páginas
+// Ahora es completamente responsivo para móviles y tablets
+//
+// Funcionalidades móviles:
+// - Selector desplegable rápido para cambiar archivos
+// - Botón 📋 para ver la lista completa de archivos en modal separado
+// - Sidebar lateral en desktop, modal en móviles
 
 import { useState } from 'react';
 import FileViewerModal from '@/components/FileViewerModal';
@@ -47,9 +53,12 @@ function PrestamosPage() {
   };
 
   return (
-    <div>
+    <div className="p-4">
       {/* Tu contenido de préstamos */}
-      <button onClick={() => handleViewPagoFiles(123)}>
+      <button 
+        onClick={() => handleViewPagoFiles(123)}
+        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium"
+      >
         Ver archivos del pago #123
       </button>
 

@@ -10,6 +10,7 @@ import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import { useInvalidateNotifications } from '@/hooks/useNotifications';
 import { NatilleraProvider, useNatillera } from '@/contexts/NatilleraContext';
+import FileViewerModal from '@/components/FileViewerModal';
 
 interface User {
   id: number;
@@ -29,6 +30,15 @@ interface Natillera {
   creator: User;
 }
 
+interface ArchivoAdjunto {
+  id: number;
+  nombre_archivo: string;
+  ruta_archivo: string;
+  tipo_archivo: string;
+  tamano: number;
+  fecha_subida: string;
+}
+
 interface Aporte {
   id: number;
   amount: number;
@@ -38,6 +48,7 @@ interface Aporte {
   created_at: string;
   updated_at: string;
   user: User;
+  archivos_adjuntos?: ArchivoAdjunto[];
 }
 
 interface Balance {
@@ -86,6 +97,9 @@ function NatilleraPageContent() {
   const [aportesPendientes, setAportesPendientes] = useState<Aporte[]>([]);
   const [loadingAportes, setLoadingAportes] = useState(true);
   const [aportes, setAportes] = useState<Aporte[]>([]);
+
+  const [showFileModal, setShowFileModal] = useState(false);
+  const [selectedAporteFiles, setSelectedAporteFiles] = useState<ArchivoAdjunto[]>([]);
 
   const invalidateNotifications = useInvalidateNotifications();
 
@@ -175,7 +189,22 @@ function NatilleraPageContent() {
         const res = await fetchAPI(`/aportes/natillera/${natillera.id}`);
         if (res.ok) {
           const data = await res.json();
-          setAportesPendientes(data.filter((a: Aporte) => a.status === 'pendiente'));
+          // Cargar archivos adjuntos para cada aporte pendiente
+          const aportesConArchivos = await Promise.all(
+            data.filter((a: Aporte) => a.status === 'pendiente').map(async (aporte: Aporte) => {
+              try {
+                const archivosRes = await fetchAPI(`/archivos_adjuntos/aporte/${aporte.id}`);
+                if (archivosRes.ok) {
+                  const archivos = await archivosRes.json();
+                  return { ...aporte, archivos_adjuntos: archivos };
+                }
+                return aporte;
+              } catch (error) {
+                return aporte;
+              }
+            })
+          );
+          setAportesPendientes(aportesConArchivos);
         }
       } catch (error) { }
       setLoadingAportes(false);
@@ -191,7 +220,22 @@ function NatilleraPageContent() {
       const res = await fetchAPI(`/aportes/natillera/${natillera.id}`);
       if (res.ok) {
         const data = await res.json();
-        setAportesPendientes(data.filter((a: Aporte) => a.status === 'pendiente'));
+        // Cargar archivos adjuntos para cada aporte pendiente
+        const aportesConArchivos = await Promise.all(
+          data.filter((a: Aporte) => a.status === 'pendiente').map(async (aporte: Aporte) => {
+            try {
+              const archivosRes = await fetchAPI(`/archivos_adjuntos/aporte/${aporte.id}`);
+              if (archivosRes.ok) {
+                const archivos = await archivosRes.json();
+                return { ...aporte, archivos_adjuntos: archivos };
+              }
+              return aporte;
+            } catch (error) {
+              return aporte;
+            }
+          })
+        );
+        setAportesPendientes(aportesConArchivos);
       }
     } catch (error) { }
     setLoadingAportes(false);
@@ -234,6 +278,29 @@ function NatilleraPageContent() {
       }
     } catch (error) {
       toast.error('Error al rechazar aporte');
+    }
+  };
+
+  const handleViewFiles = (archivos: ArchivoAdjunto[]) => {
+    setSelectedAporteFiles(archivos);
+    setShowFileModal(true);
+  };
+
+  const handleDeleteFile = async (fileId: number) => {
+    try {
+      const res = await fetchAPI(`/archivos_adjuntos/${fileId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        toast.success('Archivo eliminado');
+        // Refrescar los aportes pendientes para actualizar la lista de archivos
+        refreshAportesPendientes();
+        setShowFileModal(false);
+      } else {
+        toast.error('Error al eliminar archivo');
+      }
+    } catch (error) {
+      toast.error('Error al eliminar archivo');
     }
   };
 
@@ -342,6 +409,8 @@ function NatilleraPageContent() {
               onApproveAporte: handleApproveAporte,
               onRejectAporte: handleRejectAporte,
               aportesTotales: aportesTotales,
+              onViewFiles: handleViewFiles,
+              onDeleteFile: handleDeleteFile,
             }}
             balance={balance}
             loadingBalance={loadingBalance}
@@ -360,6 +429,17 @@ function NatilleraPageContent() {
           />
         )}
       </main>
+
+      {/* Modal de archivos */}
+      {showFileModal && selectedAporteFiles.length > 0 && (
+        <FileViewerModal
+          isOpen={showFileModal}
+          archivos={selectedAporteFiles}
+          onClose={() => setShowFileModal(false)}
+          onDeleteFile={handleDeleteFile}
+          canDelete={true}
+        />
+      )}
     </div>
   );
 }

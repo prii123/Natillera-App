@@ -2,10 +2,20 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { fetchAPI, formatCurrency } from "@/lib/api";
 import { useInvalidateNotifications } from "@/hooks/useNotifications";
+import FileViewerModal from "@/components/FileViewerModal";
 
 interface Props {
   natillera: any;
   user: any;
+}
+
+interface ArchivoAdjunto {
+  id: number;
+  nombre_archivo: string;
+  ruta_archivo: string;
+  tipo_archivo: string;
+  tamano: number;
+  fecha_subida: string;
 }
 
 interface Prestamo {
@@ -28,6 +38,7 @@ interface PagoPendiente {
   fecha_pago: string;
   prestatario: string;
   prestamo_monto: number;
+  archivos_adjuntos?: ArchivoAdjunto[];
 }
 
 const PrestamosCreador: React.FC<Props> = ({ natillera, user }) => {
@@ -41,6 +52,8 @@ const PrestamosCreador: React.FC<Props> = ({ natillera, user }) => {
   const [editingPrestamo, setEditingPrestamo] = useState<Prestamo | null>(null);
   const [editMonto, setEditMonto] = useState("");
   const [editTasa, setEditTasa] = useState("");
+  const [showFileModal, setShowFileModal] = useState(false);
+  const [selectedPagoFiles, setSelectedPagoFiles] = useState<ArchivoAdjunto[]>([]);
 
   const invalidateNotifications = useInvalidateNotifications();
 
@@ -63,7 +76,22 @@ const PrestamosCreador: React.FC<Props> = ({ natillera, user }) => {
         
         if (pagosRes.ok) {
           const pagosData = await pagosRes.json();
-          setPagosPendientes(pagosData);
+          // Cargar archivos adjuntos para cada pago pendiente
+          const pagosConArchivos = await Promise.all(
+            pagosData.map(async (pago: PagoPendiente) => {
+              try {
+                const archivosRes = await fetchAPI(`/archivos_adjuntos/pago_prestamo/${pago.id}`);
+                if (archivosRes.ok) {
+                  const archivos = await archivosRes.json();
+                  return { ...pago, archivos_adjuntos: archivos };
+                }
+                return pago;
+              } catch (error) {
+                return pago;
+              }
+            })
+          );
+          setPagosPendientes(pagosConArchivos);
         }
       } catch (e) {
         setError("Error al cargar datos");
@@ -242,6 +270,35 @@ const PrestamosCreador: React.FC<Props> = ({ natillera, user }) => {
     }
   };
 
+  const handleViewPagoFiles = (pago: PagoPendiente) => {
+    setSelectedPagoFiles(pago.archivos_adjuntos || []);
+    setShowFileModal(true);
+  };
+
+  const handleDeletePagoFile = async (fileId: number) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este archivo?')) return;
+    
+    try {
+      const res = await fetchAPI(`/archivos_adjuntos/${fileId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        // Actualizar la lista de archivos del pago seleccionado
+        setSelectedPagoFiles(prev => prev.filter(f => f.id !== fileId));
+        // También actualizar en la lista de pagos pendientes
+        setPagosPendientes(prev => prev.map(p => ({
+          ...p,
+          archivos_adjuntos: p.archivos_adjuntos?.filter(f => f.id !== fileId) || []
+        })));
+        setSuccess('Archivo eliminado correctamente');
+      } else {
+        setError('Error al eliminar archivo');
+      }
+    } catch (e) {
+      setError('Error al eliminar archivo');
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto py-10 px-4 bg-gray-50 min-h-screen">
       <div className="bg-white rounded-xl shadow p-6 mb-6">
@@ -328,6 +385,14 @@ const PrestamosCreador: React.FC<Props> = ({ natillera, user }) => {
                 >
                   Aprobar Pago
                 </button>
+                {pago.archivos_adjuntos && pago.archivos_adjuntos.length > 0 && (
+                  <button
+                    onClick={() => handleViewPagoFiles(pago)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium"
+                  >
+                    Ver Archivos ({pago.archivos_adjuntos.length})
+                  </button>
+                )}
               </div>
             </div>
           ))
@@ -438,6 +503,16 @@ const PrestamosCreador: React.FC<Props> = ({ natillera, user }) => {
             </div>
           </div>
         </div>
+      )}
+      
+      {showFileModal && (
+        <FileViewerModal
+          isOpen={showFileModal}
+          onClose={() => setShowFileModal(false)}
+          archivos={selectedPagoFiles}
+          onDeleteFile={handleDeletePagoFile}
+          canDelete={true}
+        />
       )}
     </div>
   );

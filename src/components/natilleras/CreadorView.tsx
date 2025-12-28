@@ -109,6 +109,7 @@ export default function CreadorView({ natillera, balance, loadingBalance, loadin
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adjuntos</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                 </tr>
               </thead>
@@ -118,6 +119,18 @@ export default function CreadorView({ natillera, balance, loadingBalance, loadin
                     <td className="px-4 py-4 whitespace-nowrap text-sm">{aporte.user?.full_name || 'Usuario'}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">{formatCurrency(Number(aporte.amount))}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">{new Date(aporte.created_at).toLocaleDateString('es-CO')}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm">
+                      {aporte.archivos_adjuntos && aporte.archivos_adjuntos.length > 0 ? (
+                        <button
+                          onClick={() => natillera.onViewFiles(aporte.archivos_adjuntos)}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          📎 {aporte.archivos_adjuntos.length} archivo{aporte.archivos_adjuntos.length !== 1 ? 's' : ''}
+                        </button>
+                      ) : (
+                        <span className="text-gray-400">Sin archivos</span>
+                      )}
+                    </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm space-x-2">
                       <button
                         onClick={() => natillera.onApproveAporte(aporte.id)}
@@ -180,27 +193,27 @@ export default function CreadorView({ natillera, balance, loadingBalance, loadin
             <div className="p-4 rounded-xl border bg-green-50 border-green-300 shadow-sm flex flex-col items-center">
               <span className="text-2xl mb-1">💵</span>
               <span className="font-semibold text-green-900">Efectivo</span>
-              <span className="text-lg font-bold text-green-800">{formatCurrency(Number(balance.efectivo))}</span>
+              <span className="text-lg font-bold text-green-800">{formatCurrency(Math.round(Number(balance.efectivo)))}</span>
             </div>
             <div className="p-4 rounded-xl border bg-yellow-50 border-yellow-300 shadow-sm flex flex-col items-center">
               <span className="text-2xl mb-1">💸</span>
               <span className="font-semibold text-yellow-900">Préstamos</span>
-              <span className="text-lg font-bold text-yellow-800">{formatCurrency(Number(balance.prestamos))}</span>
+              <span className="text-lg font-bold text-yellow-800">{formatCurrency(Math.round(Number(balance.prestamos)))}</span>
             </div>
             <div className="p-4 rounded-xl border bg-blue-50 border-blue-300 shadow-sm flex flex-col items-center">
               <span className="text-2xl mb-1">📈</span>
               <span className="font-semibold text-blue-900">Ingresos</span>
-              <span className="text-lg font-bold text-blue-800">{formatCurrency(Number(balance.ingresos))}</span>
+              <span className="text-lg font-bold text-blue-800">{formatCurrency(Math.round(Number(balance.ingresos)))}</span>
             </div>
             <div className="p-4 rounded-xl border bg-red-50 border-red-300 shadow-sm flex flex-col items-center">
               <span className="text-2xl mb-1">📉</span>
               <span className="font-semibold text-red-900">Gastos</span>
-              <span className="text-lg font-bold text-red-800">{formatCurrency(Number(balance.gastos))}</span>
+              <span className="text-lg font-bold text-red-800">{formatCurrency(Math.round(Number(balance.gastos)))}</span>
             </div>
             <div className="p-4 rounded-xl border bg-purple-50 border-purple-300 shadow-sm flex flex-col items-center">
               <span className="text-2xl mb-1">🏦</span>
               <span className="font-semibold text-purple-900">Capital Disponible</span>
-              <span className="text-lg font-bold text-purple-800">{formatCurrency(Number(balance.capital_disponible))}</span>
+              <span className="text-lg font-bold text-purple-800">{formatCurrency(Math.round(Number(balance.capital_disponible)))}</span>
             </div>
           </div>
         ) : (

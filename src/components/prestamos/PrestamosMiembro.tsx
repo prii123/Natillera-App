@@ -7,7 +7,17 @@ interface Props {
 
 
 import { useEffect, useState } from "react";
-import { fetchAPI, formatCurrency } from "@/lib/api";
+import { fetchAPI, formatCurrency, uploadFile } from "@/lib/api";
+import FileViewerModal from "@/components/FileViewerModal";
+
+interface ArchivoAdjunto {
+  id: number;
+  nombre_archivo: string;
+  ruta_archivo: string;
+  tipo_archivo: string;
+  tamano: number;
+  fecha_subida: string;
+}
 
 interface Prestamo {
   id: number;
@@ -29,6 +39,7 @@ interface Pago {
   monto: number;
   fecha_pago: string;
   estado: string;
+  archivos_adjuntos?: ArchivoAdjunto[];
 }
 
 const PrestamosMiembro: React.FC<Props> = ({ natillera, user }) => {
@@ -49,6 +60,9 @@ const PrestamosMiembro: React.FC<Props> = ({ natillera, user }) => {
   const [selectedPrestamo, setSelectedPrestamo] = useState<Prestamo | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<{ [pagoId: number]: boolean }>({});
+  const [showFileModal, setShowFileModal] = useState(false);
+  const [selectedPagoFiles, setSelectedPagoFiles] = useState<ArchivoAdjunto[]>([]);
 
   useEffect(() => {
     if (!user || !natillera) return;
@@ -67,7 +81,22 @@ const PrestamosMiembro: React.FC<Props> = ({ natillera, user }) => {
             const pagosRes = await fetchAPI(`/prestamos/${p.id}/pagos`);
             if (pagosRes.ok) {
               const pagosData = await pagosRes.json();
-              setPagos(prev => ({ ...prev, [p.id]: pagosData.pagos }));
+              // Cargar archivos adjuntos para cada pago
+              const pagosConArchivos = await Promise.all(
+                pagosData.pagos.map(async (pago: Pago) => {
+                  try {
+                    const archivosRes = await fetchAPI(`/archivos_adjuntos/pago_prestamo/${pago.id}`);
+                    if (archivosRes.ok) {
+                      const archivos = await archivosRes.json();
+                      return { ...pago, archivos_adjuntos: archivos };
+                    }
+                    return pago;
+                  } catch (error) {
+                    return pago;
+                  }
+                })
+              );
+              setPagos(prev => ({ ...prev, [p.id]: pagosConArchivos }));
               setPrestamosDetalles(prev => ({ ...prev, [p.id]: pagosData.prestamo }));
             }
           }
@@ -129,6 +158,83 @@ const PrestamosMiembro: React.FC<Props> = ({ natillera, user }) => {
       setError("Error al realizar pago");
     } finally {
       setPaymentSubmitting(false);
+    }
+  };
+
+  const handleUploadToPago = async (pagoId: number, files: FileList) => {
+    setUploadingFiles(prev => ({ ...prev, [pagoId]: true }));
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        await uploadFile('/archivos_adjuntos/subir', file, {
+          id_pago_prestamo: pagoId
+        });
+      }
+      setSuccess('Archivos subidos exitosamente');
+      // Recargar pagos si es necesario, pero por ahora solo mostrar mensaje
+    } catch (error) {
+      console.error('Error uploading files to pago:', error);
+      setError('Error al subir archivos');
+    } finally {
+      setUploadingFiles(prev => ({ ...prev, [pagoId]: false }));
+    }
+  };
+
+  const handleViewPagoFiles = (archivos: ArchivoAdjunto[]) => {
+    setSelectedPagoFiles(archivos);
+    setShowFileModal(true);
+  };
+
+  const handleDeletePagoFile = async (fileId: number) => {
+    try {
+      const res = await fetchAPI(`/archivos_adjuntos/${fileId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setSuccess('Archivo eliminado');
+        // Recargar pagos para actualizar la lista de archivos
+        // Por simplicidad, recargar toda la data
+        if (user && natillera) {
+          const cargarPrestamos = async () => {
+            const res = await fetchAPI(`/prestamos/natilleras/${natillera.id}?referente_id=${user.id}&estado=activo`);
+            if (res.ok) {
+              const data = await res.json();
+              setPrestamosAprobados(data.aprobados || []);
+              setPrestamosRechazados(data.rechazados || []);
+              setPrestamosPendientes(data.pendientes || []);
+              const allPrestamos = [...(data.aprobados || []), ...(data.rechazados || []), ...(data.pendientes || [])];
+              for (const p of allPrestamos) {
+                const pagosRes = await fetchAPI(`/prestamos/${p.id}/pagos`);
+                if (pagosRes.ok) {
+                  const pagosData = await pagosRes.json();
+                  const pagosConArchivos = await Promise.all(
+                    pagosData.pagos.map(async (pago: Pago) => {
+                      try {
+                        const archivosRes = await fetchAPI(`/archivos_adjuntos/pago_prestamo/${pago.id}`);
+                        if (archivosRes.ok) {
+                          const archivos = await archivosRes.json();
+                          return { ...pago, archivos_adjuntos: archivos };
+                        }
+                        return pago;
+                      } catch (error) {
+                        return pago;
+                      }
+                    })
+                  );
+                  setPagos(prev => ({ ...prev, [p.id]: pagosConArchivos }));
+                  setPrestamosDetalles(prev => ({ ...prev, [p.id]: pagosData.prestamo }));
+                }
+              }
+            }
+          };
+          cargarPrestamos();
+        }
+        setShowFileModal(false);
+      } else {
+        setError('Error al eliminar archivo');
+      }
+    } catch (error) {
+      setError('Error al eliminar archivo');
     }
   };
 
@@ -335,20 +441,58 @@ const PrestamosMiembro: React.FC<Props> = ({ natillera, user }) => {
                   {pagos[prestamo.id] && pagos[prestamo.id].length > 0 ? (
                     <ul className="text-sm space-y-1">
                       {pagos[prestamo.id].map(pago => (
-                        <li key={pago.id} className="flex justify-between items-center">
-                          <div className="flex items-center space-x-2">
-                            <span>{new Date(pago.fecha_pago).toLocaleDateString()}</span>
-                            <span className={`text-xs px-2 py-1 rounded ${
-                              pago.estado === 'APROBADO' ? 'bg-green-100 text-green-800' :
-                              pago.estado === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {pago.estado === 'APROBADO' ? 'Aprobado' :
-                               pago.estado === 'PENDIENTE' ? 'Pendiente' :
-                               pago.estado}
-                            </span>
+                        <li key={pago.id} className="border rounded p-2 mb-2">
+                          <div className="flex justify-between items-center mb-1">
+                            <div className="flex items-center space-x-2">
+                              <span>{new Date(pago.fecha_pago).toLocaleDateString()}</span>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                pago.estado === 'APROBADO' ? 'bg-green-100 text-green-800' :
+                                pago.estado === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {pago.estado === 'APROBADO' ? 'Aprobado' :
+                                 pago.estado === 'PENDIENTE' ? 'Pendiente' :
+                                 pago.estado}
+                              </span>
+                            </div>
+                            <span className="text-green-700 font-medium">{formatCurrency(pago.monto)}</span>
                           </div>
-                          <span className="text-green-700 font-medium">{formatCurrency(pago.monto)}</span>
+                          {pago.estado === 'PENDIENTE' && (
+                            <div className="mt-2">
+                              <label className="cursor-pointer">
+                                <input
+                                  type="file"
+                                  multiple
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    if (e.target.files && e.target.files.length > 0) {
+                                      handleUploadToPago(pago.id, e.target.files);
+                                    }
+                                  }}
+                                  disabled={uploadingFiles[pago.id]}
+                                />
+                                <span className={`inline-flex items-center px-3 py-1 rounded-md text-sm font-medium ${
+                                  uploadingFiles[pago.id]
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer'
+                                }`}>
+                                  {uploadingFiles[pago.id] ? (
+                                    <>⏳ Subiendo...</>
+                                  ) : (
+                                    <>📎 Subir archivos</>
+                                  )}
+                                </span>
+                              </label>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => handleViewPagoFiles(pago.archivos_adjuntos || [])}
+                            className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-gray-50 text-gray-700 hover:bg-gray-100 cursor-pointer"
+                          >
+                            📎 {pago.archivos_adjuntos && pago.archivos_adjuntos.length > 0 
+                              ? `${pago.archivos_adjuntos.length} archivo${pago.archivos_adjuntos.length !== 1 ? 's' : ''}` 
+                              : 'Ver archivos'}
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -394,20 +538,50 @@ const PrestamosMiembro: React.FC<Props> = ({ natillera, user }) => {
                   {pagos[prestamo.id] && pagos[prestamo.id].length > 0 ? (
                     <ul className="text-sm space-y-1">
                       {pagos[prestamo.id].map(pago => (
-                        <li key={pago.id} className="flex justify-between items-center">
-                          <div className="flex items-center space-x-2">
-                            <span>{new Date(pago.fecha_pago).toLocaleDateString()}</span>
-                            <span className={`text-xs px-2 py-1 rounded ${
-                              pago.estado === 'APROBADO' ? 'bg-green-100 text-green-800' :
-                              pago.estado === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {pago.estado === 'APROBADO' ? 'Aprobado' :
-                               pago.estado === 'PENDIENTE' ? 'Pendiente' :
-                               pago.estado}
-                            </span>
+                        <li key={pago.id} className="border rounded p-2 mb-2">
+                          <div className="flex justify-between items-center mb-1">
+                            <div className="flex items-center space-x-2">
+                              <span>{new Date(pago.fecha_pago).toLocaleDateString()}</span>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                pago.estado === 'APROBADO' ? 'bg-green-100 text-green-800' :
+                                pago.estado === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {pago.estado === 'APROBADO' ? 'Aprobado' :
+                                 pago.estado === 'PENDIENTE' ? 'Pendiente' :
+                                 pago.estado}
+                              </span>
+                            </div>
+                            <span className="text-green-700 font-medium">{formatCurrency(pago.monto)}</span>
                           </div>
-                          <span className="text-green-700 font-medium">{formatCurrency(pago.monto)}</span>
+                          {pago.estado === 'PENDIENTE' && (
+                            <div className="mt-2">
+                              <label className="cursor-pointer">
+                                <input
+                                  type="file"
+                                  multiple
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    if (e.target.files && e.target.files.length > 0) {
+                                      handleUploadToPago(pago.id, e.target.files);
+                                    }
+                                  }}
+                                  disabled={uploadingFiles[pago.id]}
+                                />
+                                <span className={`inline-flex items-center px-3 py-1 rounded-md text-sm font-medium ${
+                                  uploadingFiles[pago.id]
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer'
+                                }`}>
+                                  {uploadingFiles[pago.id] ? (
+                                    <>⏳ Subiendo...</>
+                                  ) : (
+                                    <>📎 Subir archivos</>
+                                  )}
+                                </span>
+                              </label>
+                            </div>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -479,6 +653,15 @@ const PrestamosMiembro: React.FC<Props> = ({ natillera, user }) => {
           })
         )}
       </div>
+
+      <FileViewerModal
+        isOpen={showFileModal}
+        onClose={() => setShowFileModal(false)}
+        archivos={selectedPagoFiles}
+        onDeleteFile={handleDeletePagoFile}
+        canDelete={true}
+      />
+
     </div>
   );
 };
