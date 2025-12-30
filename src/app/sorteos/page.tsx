@@ -153,31 +153,41 @@ export default function SorteosPage() {
         return;
       }
 
+      // Verificar que el usuario sea el creador de la natillera
+      const selectedNatilleraData = natilleras.find(n => n.id === natilleraId);
+      if (!selectedNatilleraData) {
+        alert('Natillera no encontrada');
+        return;
+      }
+      if (selectedNatilleraData.creator_id !== user?.id) {
+        alert('Solo puedes crear sorteos en natilleras que has creado');
+        return;
+      }
+
+      // Validar campos requeridos
+      if (!titulo.trim()) {
+        alert('Por favor ingresa un título para el sorteo');
+        return;
+      }
+
       const body: any = {
         natillera_id: natilleraId,
         tipo: tipoSorteo,
         titulo: titulo.trim(),
       };
 
-      // Solo incluir descripcion si tiene un valor
+      // Solo incluir descripcion si tiene un valor no vacío
       if (descripcion.trim()) {
         body.descripcion = descripcion.trim();
       }
 
       // Solo incluir fecha_sorteo si tiene un valor
-      // Por ahora, no enviamos fecha para evitar problemas de formato
-      // if (fechaSorteo) {
-      //   body.fecha_sorteo = fechaSorteo;
-      // }
+      if (fechaSorteo) {
+        body.fecha_sorteo = fechaSorteo;
+      }
 
-      // console.log('Enviando datos al backend:', body);
-      // console.log('Tipos de datos:', {
-      //   natillera_id: typeof body.natillera_id,
-      //   tipo: typeof body.tipo,
-      //   titulo: typeof body.titulo,
-      //   descripcion: typeof body.descripcion,
-      //   fecha_sorteo: typeof body.fecha_sorteo
-      // });
+      console.log('Enviando datos al backend:', body);
+      console.log('Token disponible:', !!localStorage.getItem('token'));
 
       const response = await fetchAPI('/sorteos', {
         method: 'POST',
@@ -188,6 +198,7 @@ export default function SorteosPage() {
         setShowCreateModal(false);
         resetForm();
         loadSorteos();
+        alert('Sorteo creado exitosamente!');
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('Error creando sorteo:', {
@@ -196,10 +207,25 @@ export default function SorteosPage() {
           error: errorData,
           sentData: body
         });
-        alert(`Error creando sorteo: ${JSON.stringify(errorData)}`);
+        
+        let errorMessage = 'Error desconocido al crear el sorteo';
+        if (response.status === 401) {
+          errorMessage = 'Sesión expirada. Por favor inicia sesión nuevamente.';
+        } else if (response.status === 403) {
+          errorMessage = 'No tienes permisos para crear sorteos en esta natillera.';
+        } else if (response.status === 404) {
+          errorMessage = 'Natillera no encontrada.';
+        } else if (errorData.detail) {
+          errorMessage = `Error: ${errorData.detail}`;
+        }
+        
+        alert(errorMessage);
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error de red:', error);
+      let errorMessage = 'Error de conexión. Verifica tu conexión a internet.';
+      
+      alert(errorMessage);
     }
   };
 

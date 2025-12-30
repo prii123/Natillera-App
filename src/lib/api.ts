@@ -24,17 +24,50 @@ export async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
 
   const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
   
-  const response = await fetch(url, config);
+  console.log('API Request:', {
+    url,
+    method: config.method || 'GET',
+    hasToken: !!token,
+    hasBody: !!config.body
+  });
   
-  if (response.status === 401) {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+  try {
+    // Configurar timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
+    
+    const fetchConfig = {
+      ...config,
+      signal: controller.signal,
+    };
+    
+    const response = await fetch(url, fetchConfig);
+    clearTimeout(timeoutId);
+    
+    console.log('API Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: response.url,
+      headers: Object.fromEntries(response.headers.entries())
+    });
+    
+    // Manejar errores de autenticación
+    if (response.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+      throw new Error('No autorizado');
     }
-    throw new Error('No autorizado');
+    
+    return response;
+  } catch (error) {
+    console.error('Fetch error:', error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Request timeout - el servidor no responde');
+    }
+    throw error;
   }
-  
-  return response;
 }
 
 export function formatCurrency(amount: number) {
