@@ -34,15 +34,23 @@ export default function SorteosPage() {
 
   useEffect(() => {
     if (user) {
-      loadNatilleras();
-      loadSorteos();
-      loadSorteosFinalizados();
+      // Verificar que el token existe antes de hacer llamadas
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (token) {
+        // Pequeño delay para asegurar que la autenticación esté completa
+        const timer = setTimeout(() => {
+          loadNatilleras();
+          loadSorteos();
+          loadSorteosFinalizados();
+        }, 100);
+        return () => clearTimeout(timer);
+      }
     }
   }, [user]);
 
   const loadNatilleras = async () => {
     try {
-      const response = await fetchAPI('/natilleras');
+      const response = await fetchAPI('/natilleras/activas'); // Cambiar a /activas como en dashboard
       if (response.ok) {
         const data = await response.json();
         setNatilleras(data);
@@ -73,6 +81,7 @@ export default function SorteosPage() {
   const loadSorteosFinalizados = async () => {
     try {
       const response = await fetchAPI('/sorteos/finalizados');
+      console.log('Respuesta de sorteos finalizados:', response.status, response.body);
       if (response.ok) {
         const data = await response.json();
         setSorteosFinalizados(data || []);
