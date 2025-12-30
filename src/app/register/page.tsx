@@ -52,7 +52,7 @@ export default function RegisterPage() {
 
       if (response.ok) {
         const userData = await response.json();
-        console.log('Usuario creado:', userData);
+        // console.log('Usuario creado:', userData);
         router.push('/dashboard');
       } else {
         const errorData = await response.json();

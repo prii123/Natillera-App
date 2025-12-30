@@ -66,7 +66,7 @@ export default function SorteosPage() {
       const response = await fetchAPI('/sorteos/activos');
       if (response.ok) {
         const data = await response.json();
-        console.log('Sorteos recibidos del backend:', data);
+        // console.log('Sorteos recibidos del backend:', data);
         setSorteos(data);
       } else {
         console.error('Error cargando sorteos:', response.status);
@@ -81,7 +81,7 @@ export default function SorteosPage() {
   const loadSorteosFinalizados = async () => {
     try {
       const response = await fetchAPI('/sorteos/finalizados');
-      console.log('Respuesta de sorteos finalizados:', response.status, response.body);
+      // console.log('Respuesta de sorteos finalizados:', response.status, response.body);
       if (response.ok) {
         const data = await response.json();
         setSorteosFinalizados(data || []);
@@ -96,12 +96,12 @@ export default function SorteosPage() {
   const loadBilletes = async (sorteoId: number) => {
     setLoadingBilletes(true);
     try {
-      console.log('Cargando billetes para sorteo:', sorteoId);
+      // console.log('Cargando billetes para sorteo:', sorteoId);
       const response = await fetchAPI(`/sorteos/${sorteoId}/billetes`);
-      console.log('Respuesta de billetes:', response.status, response.statusText);
+      // console.log('Respuesta de billetes:', response.status, response.statusText);
       if (response.ok) {
         const data = await response.json();
-        console.log('Billetes recibidos:', data);
+        // console.log('Billetes recibidos:', data);
         setBilletes(data);
       } else {
         console.error('Error cargando billetes:', response.status);
@@ -170,14 +170,14 @@ export default function SorteosPage() {
       //   body.fecha_sorteo = fechaSorteo;
       // }
 
-      console.log('Enviando datos al backend:', body);
-      console.log('Tipos de datos:', {
-        natillera_id: typeof body.natillera_id,
-        tipo: typeof body.tipo,
-        titulo: typeof body.titulo,
-        descripcion: typeof body.descripcion,
-        fecha_sorteo: typeof body.fecha_sorteo
-      });
+      // console.log('Enviando datos al backend:', body);
+      // console.log('Tipos de datos:', {
+      //   natillera_id: typeof body.natillera_id,
+      //   tipo: typeof body.tipo,
+      //   titulo: typeof body.titulo,
+      //   descripcion: typeof body.descripcion,
+      //   fecha_sorteo: typeof body.fecha_sorteo
+      // });
 
       const response = await fetchAPI('/sorteos', {
         method: 'POST',
