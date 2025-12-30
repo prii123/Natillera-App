@@ -102,3 +102,33 @@ export interface ResumenPrestamos {
   monto_por_recuperar: string;
   monto_recuperado: string;
 }
+
+export interface Sorteo {
+  id: number;
+  natillera_id: number;
+  tipo: 'loteria' | 'rifa';
+  titulo: string;
+  descripcion?: string;
+  fecha_creacion: string;
+  fecha_sorteo?: string;
+  estado: 'activo' | 'finalizado';
+  creador_id: number;
+  numero_ganador?: string;
+  creador: User;
+  natillera: Natillera;
+}
+
+export interface SorteoFinalizado extends Sorteo {
+  ganador?: User;
+}
+
+export interface BilleteLoteria {
+  id: number;
+  sorteo_id: number;
+  numero: string;
+  estado: 'disponible' | 'tomado';
+  tomado_por?: number;
+  fecha_tomado?: string;
+  pagado: boolean;
+  usuario?: User;
+}
