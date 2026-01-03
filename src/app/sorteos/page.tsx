@@ -186,8 +186,8 @@ export default function SorteosPage() {
         body.fecha_sorteo = fechaSorteo;
       }
 
-      console.log('Enviando datos al backend:', body);
-      console.log('Token disponible:', !!localStorage.getItem('token'));
+      // console.log('Enviando datos al backend:', body);
+      // console.log('Token disponible:', !!localStorage.getItem('token'));
 
       const response = await fetchAPI('/sorteos/', {
         method: 'POST',

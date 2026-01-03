@@ -24,12 +24,12 @@ export async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
 
   const url = endpoint.startsWith('https') ? endpoint : `${API_URL}${endpoint}`;
   
-  console.log('API Request:', {
-    url,
-    method: config.method || 'GET',
-    hasToken: !!token,
-    hasBody: !!config.body
-  });
+  // console.log('API Request:', {
+  //   url,
+  //   method: config.method || 'GET',
+  //   hasToken: !!token,
+  //   hasBody: !!config.body
+  // });
   
   try {
     // Configurar timeout
@@ -44,12 +44,12 @@ export async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
     const response = await fetch(url, fetchConfig);
     clearTimeout(timeoutId);
     
-    console.log('API Response:', {
-      status: response.status,
-      statusText: response.statusText,
-      url: response.url,
-      headers: Object.fromEntries(response.headers.entries())
-    });
+    // console.log('API Response:', {
+    //   status: response.status,
+    //   statusText: response.statusText,
+    //   url: response.url,
+    //   headers: Object.fromEntries(response.headers.entries())
+    // });
     
     // Manejar errores de autenticación
     if (response.status === 401) {
