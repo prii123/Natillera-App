@@ -22,7 +22,7 @@ export async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
     config.body = JSON.stringify(options.body);
   }
 
-  const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
+  const url = endpoint.startsWith('https') ? endpoint : `${API_URL}${endpoint}`;
   
   console.log('API Request:', {
     url,

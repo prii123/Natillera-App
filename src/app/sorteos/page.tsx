@@ -189,7 +189,7 @@ export default function SorteosPage() {
       console.log('Enviando datos al backend:', body);
       console.log('Token disponible:', !!localStorage.getItem('token'));
 
-      const response = await fetchAPI('/sorteos', {
+      const response = await fetchAPI('/sorteos/', {
         method: 'POST',
         body,
       });
